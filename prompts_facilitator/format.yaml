@@ -1,0 +1,22 @@
+output_schema:
+  answer: string
+  confidence: high | medium | low
+  source: tool | model
+  data_points: list
+
+guidance:
+  language: plain English, no internal jargon unless asked
+  length: concise; lead with the most important finding
+  grounding: every claim in the answer must be traceable to a tool result
+  confidence:
+    high: the tool returned clear data that directly answers the question
+    medium: the tool returned data but the answer requires some interpretation
+    low: the tool returned partial data or the request was only partially supported
+  source:
+    tool: answer is grounded directly in tool output
+    model: answer required interpretation or inference beyond the raw tool result
+
+  note: >
+    This format does not yet account for different audience types.
+    The same answer structure is used regardless of who is asking.
+    Consider whether the answer should be shaped differently for different roles.

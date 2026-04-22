@@ -1,0 +1,44 @@
+entities:
+
+  customer_id:
+    pattern: CUS followed by three digits, e.g. CUS007
+    note: always required to call a customer tool; if missing, do not guess
+
+  fraud:
+    description: a transaction marked as suspicious by the bank's detection system
+    note: a fraud flag on a transaction does not automatically mean the customer is high risk
+
+  alert:
+    description: a bank-generated notification about activity on a customer account
+    severity_levels: LOW, MEDIUM, HIGH
+    types: FRAUD, AML, ACCOUNT, PROFILE
+    status_values: OPEN, RESOLVED
+    note: an alert indicates something requires attention; it does not confirm wrongdoing
+
+  risk_rating:
+    description: the bank's current assessment of a customer's overall risk level
+    values: LOW, MEDIUM, HIGH
+    note: risk rating reflects the customer's profile, not just recent transactions
+
+  spending_summary:
+    description: a grouped breakdown of a customer's transaction history by category, merchant, or channel
+
+  behaviour:
+    description: the observable pattern of a customer's transactions and account activity over time
+    note: >
+      behaviour is not the same as risk. A customer can have high spending behaviour and low risk,
+      or low spending behaviour and high risk. Define more precisely for your use case.
+
+  risk_profile:
+    description: the combination of risk_rating, account status, and alert history for a customer
+    note: risk_profile is not a single field; it is a composite view assembled from multiple tools
+
+  alert_posture:
+    description: not yet defined
+    note: define this term before using it in prompts or evals
+
+  comparison_request:
+    description: not yet defined
+    note: >
+      a comparison request involves two or more customers. Define what makes a valid comparison
+      before relying on this concept in routing rules.

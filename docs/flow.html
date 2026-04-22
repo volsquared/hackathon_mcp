@@ -1,0 +1,1787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hackathon Agent Flow</title>
+  <style>
+    :root {
+      --bg: #09111f;
+      --bg-alt: #101b30;
+      --panel: rgba(9, 17, 31, 0.78);
+      --panel-strong: rgba(11, 22, 39, 0.96);
+      --line: rgba(121, 166, 255, 0.22);
+      --line-hot: rgba(120, 229, 255, 0.96);
+      --text: #e8eefc;
+      --muted: #9eb0cf;
+      --heading: #f5f9ff;
+      --cyan: #64d6ff;
+      --blue: #78a4ff;
+      --gold: #ffd166;
+      --mint: #69f0c8;
+      --rose: #ff7f9f;
+      --shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
+      --radius-lg: 28px;
+      --radius-md: 18px;
+      --radius-sm: 12px;
+      --node-w: 190px;
+      --node-h: 112px;
+      --dur: 680ms;
+      font-family: "Aptos", "Segoe UI Variable", "Trebuchet MS", "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background:
+        radial-gradient(circle at 15% 10%, rgba(120, 164, 255, 0.22), transparent 32%),
+        radial-gradient(circle at 85% 18%, rgba(100, 214, 255, 0.16), transparent 24%),
+        radial-gradient(circle at 52% 84%, rgba(255, 209, 102, 0.12), transparent 26%),
+        linear-gradient(160deg, #07101d 0%, #0b1425 45%, #111c31 100%);
+      color: var(--text);
+    }
+
+    body {
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(90deg, rgba(255,255,255,0.015) 0, transparent 18%, transparent 82%, rgba(255,255,255,0.015) 100%),
+        radial-gradient(circle at 50% 0%, rgba(255,255,255,0.05), transparent 38%);
+      mix-blend-mode: screen;
+      opacity: 0.34;
+    }
+
+    .shell {
+      position: relative;
+      max-width: 1500px;
+      margin: 0 auto;
+      padding: 32px 24px 40px;
+    }
+
+    .shell::before,
+    .shell::after {
+      content: "";
+      position: fixed;
+      inset: auto;
+      pointer-events: none;
+      z-index: 0;
+      border-radius: 999px;
+      filter: blur(80px);
+      opacity: 0.6;
+    }
+
+    .shell::before {
+      width: 280px;
+      height: 280px;
+      top: 40px;
+      right: 8%;
+      background: rgba(100, 214, 255, 0.16);
+    }
+
+    .shell::after {
+      width: 380px;
+      height: 380px;
+      bottom: 4%;
+      left: 3%;
+      background: rgba(120, 164, 255, 0.16);
+    }
+
+    .hero {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: minmax(0, 1.3fr) minmax(300px, 0.7fr);
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+
+    .hero-card,
+    .stats {
+      background: linear-gradient(180deg, rgba(13, 24, 42, 0.88), rgba(9, 17, 31, 0.74));
+      border: 1px solid rgba(144, 181, 255, 0.14);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+
+    .hero-card {
+      padding: 28px;
+      overflow: hidden;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      color: var(--cyan);
+      background: rgba(100, 214, 255, 0.08);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    h1 {
+      margin: 18px 0 14px;
+      font-size: clamp(34px, 5vw, 64px);
+      line-height: 0.95;
+      letter-spacing: -0.04em;
+      color: var(--heading);
+      text-wrap: balance;
+      text-shadow: 0 10px 36px rgba(0, 0, 0, 0.28);
+    }
+
+    .hero-copy {
+      max-width: 62ch;
+      color: var(--muted);
+      font-size: 17px;
+      line-height: 1.6;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 22px;
+    }
+
+    .chip {
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.045);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      color: var(--text);
+      font-size: 13px;
+    }
+
+    .stats {
+      padding: 22px;
+      display: grid;
+      gap: 16px;
+      align-content: start;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .stat {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 20px;
+      padding: 16px;
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 28px;
+      margin-bottom: 6px;
+      letter-spacing: -0.04em;
+    }
+
+    .layout {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(340px, 0.65fr);
+      gap: 24px;
+      align-items: start;
+    }
+
+    .main-panel,
+    .detail-panel {
+      background: var(--panel);
+      border: 1px solid rgba(144, 181, 255, 0.12);
+      border-radius: calc(var(--radius-lg) + 4px);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+    }
+
+    .main-panel {
+      padding: 22px;
+      overflow: hidden;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: start;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 20px;
+    }
+
+    .section-head h2,
+    .detail-panel h2 {
+      margin: 0 0 8px;
+      font-size: 26px;
+      letter-spacing: -0.04em;
+    }
+
+    .section-head p,
+    .detail-panel p,
+    .micro {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .button,
+    .scenario {
+      appearance: none;
+      border: 0;
+      cursor: pointer;
+      transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, background 160ms ease;
+    }
+
+    .button {
+      padding: 11px 16px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.055);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .button:hover,
+    .scenario:hover,
+    .flow-node:hover {
+      transform: translateY(-2px);
+    }
+
+    .button.primary {
+      background: linear-gradient(135deg, rgba(100, 214, 255, 0.18), rgba(120, 164, 255, 0.14));
+      border-color: rgba(100, 214, 255, 0.34);
+      box-shadow: 0 12px 36px rgba(100, 214, 255, 0.16);
+    }
+
+    .tab-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .tab-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.045);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .tab-button.active {
+      background: linear-gradient(135deg, rgba(100, 214, 255, 0.18), rgba(120, 164, 255, 0.14));
+      border-color: rgba(100, 214, 255, 0.34);
+      box-shadow: 0 12px 36px rgba(100, 214, 255, 0.14);
+    }
+
+    .tab-button span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .tab-panel {
+      display: none;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    .scenario-strip {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .scenario {
+      text-align: left;
+      border-radius: 20px;
+      padding: 16px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.03));
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      color: var(--text);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    }
+
+    .scenario .label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--cyan);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 800;
+      margin-bottom: 10px;
+    }
+
+    .scenario strong {
+      display: block;
+      font-size: 16px;
+      margin-bottom: 8px;
+      line-height: 1.35;
+    }
+
+    .scenario.active {
+      border-color: rgba(100, 214, 255, 0.46);
+      background: linear-gradient(180deg, rgba(100, 214, 255, 0.14), rgba(120, 164, 255, 0.08));
+      box-shadow: 0 14px 36px rgba(100, 214, 255, 0.14);
+    }
+
+    .visual-shell {
+      position: relative;
+      margin-top: 10px;
+      border-radius: 28px;
+      overflow: hidden;
+      min-height: 760px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01)),
+        radial-gradient(circle at top, rgba(120, 164, 255, 0.11), transparent 36%),
+        rgba(5, 11, 21, 0.72);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .flow-stage {
+      position: relative;
+      width: 1320px;
+      height: 760px;
+      transform-origin: top left;
+    }
+
+    .flow-grid {
+      position: relative;
+      padding: 26px;
+      width: 1320px;
+      height: 760px;
+      min-height: 760px;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+      background-size: 100% 48px, 48px 100%;
+    }
+
+    .flow-grid::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 34% 56%, rgba(105, 240, 200, 0.1), transparent 20%),
+        radial-gradient(circle at 82% 64%, rgba(255, 209, 102, 0.08), transparent 20%),
+        radial-gradient(circle at 58% 16%, rgba(120, 164, 255, 0.1), transparent 26%);
+      opacity: 0.9;
+    }
+
+    .connectors,
+    .token-layer {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .connector {
+      fill: none;
+      stroke: var(--line);
+      stroke-width: 3;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      transition: stroke 220ms ease, stroke-width 220ms ease, opacity 220ms ease, filter 220ms ease;
+      opacity: 0.85;
+    }
+
+    .connector.hot {
+      stroke: var(--line-hot);
+      stroke-width: 4;
+      filter: drop-shadow(0 0 12px rgba(100, 214, 255, 0.45));
+      opacity: 1;
+    }
+
+    .connector.return {
+      stroke-dasharray: 8 10;
+    }
+
+    .flow-node {
+      position: absolute;
+      width: var(--node-w);
+      min-height: var(--node-h);
+      padding: 14px 14px 16px;
+      border-radius: 22px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: linear-gradient(180deg, rgba(13, 24, 42, 0.92), rgba(9, 17, 31, 0.84));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 20px 48px rgba(0,0,0,0.28);
+      cursor: pointer;
+      transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+      z-index: 2;
+    }
+
+    .flow-node::after {
+      content: "";
+      position: absolute;
+      inset: 1px;
+      border-radius: 20px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), transparent 30%);
+      pointer-events: none;
+    }
+
+    .flow-node .topline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .flow-node .tag {
+      display: inline-flex;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.05);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .flow-node h3 {
+      margin: 0 0 6px;
+      font-size: 18px;
+      letter-spacing: -0.03em;
+      color: var(--heading);
+    }
+
+    .flow-node p {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+
+    .flow-node .kicker {
+      font-size: 12px;
+      color: var(--cyan);
+      font-weight: 700;
+      letter-spacing: 0.03em;
+    }
+
+    .flow-node.active {
+      border-color: rgba(100, 214, 255, 0.58);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.07),
+        0 0 0 1px rgba(100, 214, 255, 0.2),
+        0 24px 56px rgba(22, 78, 146, 0.34);
+      transform: translateY(-3px) scale(1.01);
+    }
+
+    .flow-node.selected {
+      border-color: rgba(255, 209, 102, 0.72);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.07),
+        0 0 0 1px rgba(255, 209, 102, 0.24),
+        0 24px 56px rgba(125, 82, 9, 0.28);
+    }
+
+    .flow-node.branch {
+      width: 170px;
+      min-height: 98px;
+    }
+
+    .flow-node.branch.selected {
+      background: linear-gradient(180deg, rgba(28, 41, 18, 0.92), rgba(9, 17, 31, 0.88));
+      border-color: rgba(105, 240, 200, 0.56);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.06),
+        0 0 0 1px rgba(105, 240, 200, 0.18),
+        0 24px 56px rgba(12, 96, 74, 0.26);
+    }
+
+    .request-ghost {
+      position: absolute;
+      left: 36px;
+      top: 18px;
+      z-index: 1;
+      max-width: 270px;
+      padding: 16px 18px;
+      border-radius: 20px;
+      background: rgba(6, 14, 26, 0.85);
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 18px 44px rgba(0,0,0,0.24);
+    }
+
+    .mcp-shell {
+      margin-top: 10px;
+      padding: 26px;
+      border-radius: 28px;
+      min-height: 760px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01)),
+        radial-gradient(circle at 18% 20%, rgba(105, 240, 200, 0.1), transparent 24%),
+        radial-gradient(circle at 78% 18%, rgba(100, 214, 255, 0.1), transparent 22%),
+        radial-gradient(circle at 48% 80%, rgba(255, 209, 102, 0.08), transparent 24%),
+        rgba(5, 11, 21, 0.72);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .mcp-intro {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(260px, 0.9fr);
+      gap: 18px;
+      margin-bottom: 22px;
+    }
+
+    .mcp-card {
+      padding: 18px 20px;
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .mcp-card h3,
+    .mcp-loop h3 {
+      margin: 0 0 10px;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--cyan);
+    }
+
+    .mcp-card p,
+    .mcp-step p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .mcp-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .mcp-column {
+      display: grid;
+      gap: 18px;
+      align-content: start;
+    }
+
+    .mcp-node {
+      position: relative;
+      padding: 18px;
+      border-radius: 24px;
+      min-height: 150px;
+      background: linear-gradient(180deg, rgba(13, 24, 42, 0.92), rgba(9, 17, 31, 0.84));
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 20px 48px rgba(0,0,0,0.24);
+    }
+
+    .mcp-node::after {
+      content: "";
+      position: absolute;
+      inset: 1px;
+      border-radius: 22px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), transparent 32%);
+      pointer-events: none;
+    }
+
+    .mcp-node .tag {
+      display: inline-flex;
+      margin-bottom: 10px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.05);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .mcp-node h3 {
+      margin: 0 0 8px;
+      font-size: 24px;
+      letter-spacing: -0.03em;
+      color: var(--heading);
+    }
+
+    .mcp-node p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .mcp-node ul {
+      margin: 12px 0 0;
+      padding-left: 18px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .mcp-node.agent {
+      border-color: rgba(120, 164, 255, 0.22);
+    }
+
+    .mcp-node.server {
+      border-color: rgba(105, 240, 200, 0.24);
+    }
+
+    .mcp-node.llm {
+      border-color: rgba(255, 209, 102, 0.24);
+    }
+
+    .mcp-node.answer {
+      border-color: rgba(255, 127, 159, 0.24);
+    }
+
+    .mcp-arrow {
+      display: grid;
+      place-items: center;
+      min-height: 150px;
+      padding: 10px 0;
+      color: var(--cyan);
+      font-size: 13px;
+      text-align: center;
+      line-height: 1.5;
+    }
+
+    .mcp-arrow::before {
+      content: "";
+      display: block;
+      width: 100%;
+      height: 3px;
+      margin-bottom: 12px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(100, 214, 255, 0.14), rgba(100, 214, 255, 0.96));
+      box-shadow: 0 0 16px rgba(100, 214, 255, 0.24);
+    }
+
+    .mcp-arrow::after {
+      content: ">";
+      display: block;
+      margin-top: 10px;
+      color: var(--line-hot);
+      font-size: 28px;
+      font-weight: 900;
+    }
+
+    .mcp-loop {
+      margin-top: 20px;
+      padding: 18px 20px;
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.035);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .mcp-steps {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .mcp-step {
+      padding: 14px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .mcp-step strong {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--heading);
+      font-size: 15px;
+    }
+
+    .request-ghost .tiny {
+      color: var(--cyan);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .request-ghost strong {
+      display: block;
+      margin: 8px 0 10px;
+      font-size: 16px;
+      line-height: 1.35;
+      color: var(--heading);
+    }
+
+    .request-ghost .route {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .token {
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      background: radial-gradient(circle at 30% 30%, #fff, var(--cyan) 35%, #0d4f80 100%);
+      box-shadow: 0 0 0 6px rgba(100, 214, 255, 0.09), 0 0 28px rgba(100, 214, 255, 0.55);
+      opacity: 0;
+      transform: translate(-50%, -50%);
+      z-index: 4;
+      transition: opacity 220ms ease;
+    }
+
+    .token.returning {
+      background: radial-gradient(circle at 30% 30%, #fff4c6, var(--gold) 35%, #976f18 100%);
+      box-shadow: 0 0 0 6px rgba(255, 209, 102, 0.09), 0 0 28px rgba(255, 209, 102, 0.45);
+    }
+
+    .token.live {
+      opacity: 1;
+    }
+
+    .detail-panel {
+      position: sticky;
+      top: 24px;
+      padding: 22px;
+      min-height: 780px;
+      display: grid;
+      grid-template-rows: auto auto auto 1fr auto;
+      gap: 18px;
+    }
+
+    .detail-top {
+      display: flex;
+      align-items: start;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .detail-top .pill {
+      padding: 7px 10px;
+      border-radius: 999px;
+      background: rgba(100, 214, 255, 0.08);
+      color: var(--cyan);
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .detail-card {
+      padding: 16px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .detail-card h3 {
+      margin: 0 0 10px;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--cyan);
+    }
+
+    .kv {
+      display: grid;
+      gap: 12px;
+    }
+
+    .kv div {
+      display: grid;
+      gap: 4px;
+    }
+
+    .kv span {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    code,
+    pre {
+      font-family: "Cascadia Code", "Consolas", monospace;
+    }
+
+    .code {
+      margin: 0;
+      padding: 16px;
+      border-radius: 18px;
+      overflow: auto;
+      background: #07111f;
+      color: #d8e9ff;
+      border: 1px solid rgba(255,255,255,0.06);
+      line-height: 1.55;
+      font-size: 13px;
+    }
+
+    .timeline {
+      display: grid;
+      gap: 10px;
+      align-content: start;
+      max-height: 220px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    .timeline-item {
+      display: grid;
+      grid-template-columns: 34px 1fr;
+      gap: 10px;
+      align-items: start;
+      padding: 10px 12px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .timeline-item:hover {
+      background: rgba(255,255,255,0.05);
+      border-color: rgba(255,255,255,0.08);
+    }
+
+    .timeline-item strong {
+      display: inline-grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 12px;
+      background: rgba(100, 214, 255, 0.09);
+      color: var(--cyan);
+      font-size: 12px;
+    }
+
+    .footnote {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .mono {
+      font-family: "Cascadia Code", "Consolas", monospace;
+      color: #d7e5fb;
+    }
+
+    @media (max-width: 1240px) {
+      .hero,
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .detail-panel {
+        position: relative;
+        top: 0;
+        min-height: initial;
+      }
+
+      .mcp-intro,
+      .mcp-grid,
+      .mcp-steps {
+        grid-template-columns: 1fr;
+      }
+
+      .mcp-arrow {
+        min-height: initial;
+      }
+
+      .mcp-arrow::before {
+        width: 3px;
+        height: 46px;
+        margin-bottom: 10px;
+        background: linear-gradient(180deg, rgba(100, 214, 255, 0.14), rgba(100, 214, 255, 0.96));
+      }
+    }
+
+    @media (max-width: 900px) {
+      .shell {
+        padding: 20px 14px 32px;
+      }
+
+      .scenario-strip {
+        grid-template-columns: 1fr;
+      }
+
+      .controls {
+        justify-content: flex-start;
+      }
+
+      .visual-shell {
+        min-height: 1260px;
+      }
+
+      .flow-stage,
+      .flow-grid {
+        width: 1320px;
+        height: 1260px;
+        min-height: 1260px;
+      }
+
+      .request-ghost {
+        max-width: calc(100% - 72px);
+      }
+
+      .mcp-shell {
+        min-height: initial;
+        padding: 18px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <section class="hero">
+      <div class="hero-card">
+        <div class="eyebrow">Live Architecture Tour</div>
+        <h1>Watch a banking request tear through the Python stack.</h1>
+        <p class="hero-copy">
+          This is the actual starter-project shape turned into a playable systems map.
+          Run a scenario, follow the packet through routing and tool execution, then click any component
+          to inspect what it does, what it receives, and what it emits.
+        </p>
+        <div class="chips">
+          <div class="chip">Animated request + response packets</div>
+          <div class="chip">Real repo files mapped to each stage</div>
+          <div class="chip">Tool branching for fraud, alerts, profile, spending</div>
+          <div class="chip">Offline single-file HTML</div>
+        </div>
+      </div>
+      <aside class="stats">
+        <div>
+          <div class="eyebrow">Current Runtime</div>
+          <p class="micro" style="margin-top: 12px;">
+            Deterministic tool-first scaffold. Streamlit front end. Python orchestration. Java data API behind a thin client.
+          </p>
+        </div>
+        <div class="stat-grid">
+          <div class="stat">
+            <strong>8</strong>
+            <span class="micro">Primary flow stages on the canvas</span>
+          </div>
+          <div class="stat">
+            <strong>4</strong>
+            <span class="micro">Tool branches available today</span>
+          </div>
+          <div class="stat">
+            <strong>0</strong>
+            <span class="micro">Required LLM calls in the current scaffold</span>
+          </div>
+          <div class="stat">
+            <strong>1</strong>
+            <span class="micro">Click away from implementation detail</span>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <div class="layout">
+      <main class="main-panel">
+        <div class="section-head">
+          <div>
+            <h2>Interactive Flow Canvas</h2>
+            <p>Play a request, follow the branch selection, and inspect how the answer gets built on the way back.</p>
+          </div>
+          <div class="controls">
+            <button id="play-btn" class="button primary">Play Flow</button>
+            <button id="replay-btn" class="button">Replay</button>
+          </div>
+        </div>
+
+        <div class="tab-strip" role="tablist" aria-label="Architecture views">
+          <button class="button tab-button active" id="flow-tab" data-tab="flow" role="tab" aria-selected="true">
+            Current Flow
+            <span>Tool-first starter</span>
+          </button>
+          <button class="button tab-button" id="mcp-tab" data-tab="mcp" role="tab" aria-selected="false">
+            MCP + LLM View
+            <span>Smarter data access</span>
+          </button>
+        </div>
+
+        <section class="tab-panel active" id="flow-panel" role="tabpanel" aria-labelledby="flow-tab">
+          <section class="scenario-strip" id="scenario-strip"></section>
+
+          <div class="visual-shell" id="visual-shell">
+            <div class="flow-stage" id="flow-stage">
+              <div class="flow-grid" id="flow-grid">
+                <svg class="connectors" id="connectors" aria-hidden="true"></svg>
+                <svg class="token-layer" id="token-layer" aria-hidden="true">
+                  <circle id="request-token" class="token" cx="0" cy="0" r="9"></circle>
+                  <circle id="response-token" class="token returning" cx="0" cy="0" r="9"></circle>
+                </svg>
+                <div class="request-ghost">
+                  <div class="tiny">Current Scenario</div>
+                  <strong id="prompt-copy">Show fraud for CUS007</strong>
+                  <div class="route" id="route-copy">Route: `get_transactions` through the Java data API</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="tab-panel" id="mcp-panel" role="tabpanel" aria-labelledby="mcp-tab">
+          <div class="mcp-shell">
+            <div class="mcp-intro">
+              <div class="mcp-card">
+                <h3>What Changes With MCP</h3>
+                <p>
+                  Your data stays in the same databases and internal systems. The MCP server adds a clean tool layer
+                  so an agent can ask for the right records, pass the fetched context to an LLM, and return a more
+                  useful answer than a raw row dump.
+                </p>
+              </div>
+              <div class="mcp-card">
+                <h3>High-Level Outcome</h3>
+                <p>
+                  Existing DBs become easier for AI systems to query safely, consistently, and in business terms,
+                  without teaching the LLM how to talk directly to every schema and backend.
+                </p>
+              </div>
+            </div>
+
+            <div class="mcp-grid" aria-label="High-level MCP architecture diagram">
+              <div class="mcp-column">
+                <div class="mcp-node agent">
+                  <div class="tag">Agentic Loop</div>
+                  <h3>User + Agent</h3>
+                  <p>The agent receives the question, plans the next step, and decides whether it needs external data.</p>
+                  <ul>
+                    <li>Interprets the user intent</li>
+                    <li>Selects the MCP capability to call</li>
+                    <li>Loops again if more evidence is needed</li>
+                  </ul>
+                </div>
+                <div class="mcp-node server">
+                  <div class="tag">Access Layer</div>
+                  <h3>MCP Server</h3>
+                  <p>Exposes business-safe tools like "get customer", "fetch alerts", or "load transactions" instead of raw SQL.</p>
+                  <ul>
+                    <li>Standard tool interface for agents</li>
+                    <li>Hides backend complexity</li>
+                    <li>Can enforce auth, filtering, and policy</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div class="mcp-column">
+                <div class="mcp-arrow">Agent calls MCP tools for the data it needs</div>
+                <div class="mcp-node">
+                  <div class="tag">Existing Systems</div>
+                  <h3>Databases + APIs</h3>
+                  <p>Core customer, transaction, risk, and alert data remains in the systems you already own.</p>
+                  <ul>
+                    <li>Operational databases</li>
+                    <li>Data services and internal APIs</li>
+                    <li>No need to move everything into the model</li>
+                  </ul>
+                </div>
+                <div class="mcp-arrow">MCP returns structured records and facts</div>
+              </div>
+
+              <div class="mcp-column">
+                <div class="mcp-node llm">
+                  <div class="tag">Reasoning Layer</div>
+                  <h3>LLM</h3>
+                  <p>The LLM receives the fetched context, interprets it, compares signals, and turns raw data into an answer.</p>
+                  <ul>
+                    <li>Summarizes patterns and anomalies</li>
+                    <li>Explains why a customer looks risky</li>
+                    <li>Answers in natural language</li>
+                  </ul>
+                </div>
+                <div class="mcp-node answer">
+                  <div class="tag">Business Outcome</div>
+                  <h3>Intelligent Answer</h3>
+                  <p>Instead of showing disconnected records, the system returns a grounded explanation, summary, or recommendation.</p>
+                  <ul>
+                    <li>"This customer has repeated fraud flags"</li>
+                    <li>"Risk is rising because alerts and spend changed"</li>
+                    <li>"Here are the next records to inspect"</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <div class="mcp-loop">
+              <h3>Agentic Loop At A Glance</h3>
+              <div class="mcp-steps">
+                <div class="mcp-step">
+                  <strong>1. Ask</strong>
+                  <p>User asks a business question, not a schema question.</p>
+                </div>
+                <div class="mcp-step">
+                  <strong>2. Fetch</strong>
+                  <p>Agent calls the MCP server to retrieve the relevant records from existing systems.</p>
+                </div>
+                <div class="mcp-step">
+                  <strong>3. Interpret</strong>
+                  <p>The fetched data is sent to the LLM as grounded context.</p>
+                </div>
+                <div class="mcp-step">
+                  <strong>4. Reason</strong>
+                  <p>The LLM explains what the data means and whether more retrieval is needed.</p>
+                </div>
+                <div class="mcp-step">
+                  <strong>5. Answer</strong>
+                  <p>The user gets a more intelligent, context-aware response backed by live data.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <aside class="detail-panel">
+        <div class="detail-top">
+          <div>
+            <div class="pill" id="detail-group">Front Door</div>
+            <h2 id="detail-title">Streamlit UI</h2>
+            <p id="detail-summary">Collects the prompt, invokes the agent, and renders the answer plus debugging details.</p>
+          </div>
+        </div>
+
+        <div class="detail-card">
+          <h3>Component Details</h3>
+          <div class="kv">
+            <div>
+              <span>File</span>
+              <div class="mono" id="detail-file">app/ui.py</div>
+            </div>
+            <div>
+              <span>Main Entry</span>
+              <div class="mono" id="detail-entry">run_agent(prompt)</div>
+            </div>
+            <div>
+              <span>Reads</span>
+              <div id="detail-inputs">Chat prompt from the user and Streamlit session state.</div>
+            </div>
+            <div>
+              <span>Writes / Emits</span>
+              <div id="detail-outputs">Rendered assistant answer plus structured metadata.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-card">
+          <h3>Why It Exists</h3>
+          <p id="detail-why">
+            Keeps the interface thin so the teaching surface stays in the Python agent modules rather than in UI glue.
+          </p>
+        </div>
+
+        <div class="detail-card">
+          <h3>Illustrative Snippet</h3>
+          <pre class="code" id="detail-code">prompt = st.chat_input("Example: Show fraud for CUS007")
+if prompt:
+    result = run_agent(prompt)</pre>
+        </div>
+
+        <div class="detail-card">
+          <h3>Scenario Event Log</h3>
+          <div class="timeline" id="timeline"></div>
+        </div>
+
+        <div class="footnote">
+          Click a node to drill into the architecture. The detail card is anchored to the current codebase shape, not an abstract diagram.
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    const nodeData = {
+      ui: {
+        title: "Streamlit UI",
+        group: "Front Door",
+        file: "app/ui.py",
+        entry: "prompt = st.chat_input(...); result = run_agent(prompt)",
+        summary: "Collects the prompt, invokes the agent, and renders the answer plus debugging details.",
+        inputs: "User chat prompt and Streamlit session state.",
+        outputs: "Visible assistant answer, confidence, source, selected tool, tool input, and data points.",
+        why: "This file is intentionally thin. It exposes the journey without burying the important logic behind UI code.",
+        snippet: `prompt = st.chat_input("Example: Show fraud for CUS007")\nif prompt:\n    result = run_agent(prompt)`,
+        label: "Receive request"
+      },
+      graph: {
+        title: "Agent Graph",
+        group: "Orchestration",
+        file: "app/agent/graph.py",
+        entry: "run_agent(user_input)",
+        summary: "Builds the state object and runs the three-stage pipeline: decide, execute, format.",
+        inputs: "Raw user input string.",
+        outputs: "An AgentResponse object ready for UI or CLI rendering.",
+        why: "This is the clean seam where the starter stays understandable. It makes the execution order obvious and easy to extend later.",
+        snippet: `state = AgentState(user_input=user_input)\nstate = decide_tool(state)\nstate = execute_tool(state)\nreturn format_response(state)`,
+        label: "Create state"
+      },
+      decision: {
+        title: "Tool Decision",
+        group: "Routing",
+        file: "app/agent/nodes/tool_decision.py",
+        entry: "decide_tool(state)",
+        summary: "Uses keyword rules plus customer-id extraction to map the request to a tool and tool input.",
+        inputs: "state.user_input",
+        outputs: "state.selected_tool and state.tool_input",
+        why: "The current scaffold is deterministic on purpose. Participants can understand it immediately before swapping in an LLM-based router later.",
+        snippet: `if "fraud" in text or "transaction" in text:\n    state.selected_tool = "get_transactions"\n    state.tool_input = {"customer_id": customer_id, "fraud_only": "fraud" in text}`,
+        label: "Choose path"
+      },
+      execution: {
+        title: "Tool Execution",
+        group: "Dispatch",
+        file: "app/agent/nodes/tool_execution.py",
+        entry: "execute_tool(state)",
+        summary: "Dispatches to the selected Python tool and normalizes failures into a predictable error payload.",
+        inputs: "state.selected_tool and state.tool_input",
+        outputs: "state.raw_result",
+        why: "Execution stays separate from routing so the code can evolve from simple `if/elif` dispatch into registries or provider-backed tool calling later.",
+        snippet: `elif state.selected_tool == "get_transactions":\n    state.raw_result = get_transactions(\n        customer_id=state.tool_input.get("customer_id"),\n        fraud_only=state.tool_input.get("fraud_only", False),\n    )`,
+        label: "Dispatch tool"
+      },
+      transactions: {
+        title: "Transactions Tool",
+        group: "Tool Module",
+        file: "app/tools/transactions.py",
+        entry: "get_transactions(customer_id=None, fraud_only=False)",
+        summary: "Builds request parameters for transaction retrieval, including fraud-only filtering.",
+        inputs: "Optional customer id and fraud-only boolean.",
+        outputs: "A list of transaction records from the Java API.",
+        why: "This is the branch used for prompts like 'Show fraud for CUS007'. It demonstrates query parameter shaping before the API boundary.",
+        snippet: `params = {"fraudOnly": fraud_only}\nif customer_id:\n    params["customerId"] = customer_id\nreturn client.get("/api/banking/transactions", params=params)`,
+        label: "Load transactions"
+      },
+      customer: {
+        title: "Customer Tool",
+        group: "Tool Module",
+        file: "app/tools/customer.py",
+        entry: "get_customer_profile(customer_id)",
+        summary: "Fetches a single customer profile by id.",
+        inputs: "customer_id",
+        outputs: "A customer profile object.",
+        why: "This path keeps the simplest happy-case example in the project: prompt to id extraction to profile lookup.",
+        snippet: `client = BankingApiClient()\nreturn client.get(f"/api/banking/customers/{customer_id}")`,
+        label: "Load customer"
+      },
+      alerts: {
+        title: "Alerts Tool",
+        group: "Tool Module",
+        file: "app/tools/alerts.py",
+        entry: "get_alerts(customer_id=None, severity=None)",
+        summary: "Fetches alert records with optional customer or severity filtering.",
+        inputs: "Optional customer id and severity.",
+        outputs: "A list of alert objects.",
+        why: "This is a good starter exercise because it shows optional parameter shaping without much complexity.",
+        snippet: `params = {}\nif customer_id:\n    params["customerId"] = customer_id\nif severity:\n    params["severity"] = severity`,
+        label: "Load alerts"
+      },
+      spending: {
+        title: "Spending Summary Tool",
+        group: "Tool Module",
+        file: "app/tools/spending_summary.py",
+        entry: "get_spending_summary(customer_id, group_by)",
+        summary: "Requests grouped spend totals for the customer.",
+        inputs: "customer_id and grouping dimension.",
+        outputs: "Summary totals plus breakdown rows.",
+        why: "This branch introduces structured aggregation output rather than returning a flat list.",
+        snippet: `return client.get(\n    "/api/banking/spending-summary",\n    params={"customerId": customer_id, "groupBy": group_by},\n)`,
+        label: "Load summary"
+      },
+      api: {
+        title: "Banking API Client",
+        group: "HTTP Boundary",
+        file: "app/api/client.py",
+        entry: "BankingApiClient.get(path, params=None)",
+        summary: "Sends the HTTP request to the Java service and unwraps a `data` envelope when present.",
+        inputs: "REST path plus optional query parameters.",
+        outputs: "Decoded JSON payload for the calling tool.",
+        why: "The tool layer stays clean because transport details live here instead of being repeated in every tool.",
+        snippet: `response = requests.get(\n    f"{self.base_url}{path}",\n    params=params,\n    timeout=self.timeout,\n)\npayload = response.json()\nreturn payload.get("data", payload)`,
+        label: "Cross boundary"
+      },
+      java: {
+        title: "Java Banking API",
+        group: "Data Service",
+        file: "../java (separate runtime)",
+        entry: "HTTP endpoints under /api/banking/*",
+        summary: "Provides the customer, transaction, alert, and spending data used by the Python starter app.",
+        inputs: "HTTP requests from the Python client.",
+        outputs: "JSON responses.",
+        why: "The hackathon intentionally keeps the data source outside the Python app so participants can focus on orchestration and tool design.",
+        snippet: `GET /api/banking/customers/{id}\nGET /api/banking/transactions?customerId=CUS007&fraudOnly=true\nGET /api/banking/alerts?customerId=CUS007`,
+        label: "Serve data"
+      },
+      formatter: {
+        title: "Response Formatter",
+        group: "Return Path",
+        file: "app/agent/nodes/response_formatter.py",
+        entry: "format_response(state)",
+        summary: "Turns raw tool output or errors into the standard AgentResponse structure consumed by the UI.",
+        inputs: "state.selected_tool, state.raw_result, state.tool_input",
+        outputs: "AgentResponse(answer, confidence, source, data_points, ...)",
+        why: "This preserves a stable contract even while the routing and execution layers evolve.",
+        snippet: `if state.selected_tool == "get_transactions" and isinstance(state.raw_result, list):\n    response = _format_transactions(state.raw_result)\nresponse.selected_tool = state.selected_tool\nresponse.tool_input = state.tool_input`,
+        label: "Shape answer"
+      },
+      response: {
+        title: "Rendered Answer",
+        group: "Output",
+        file: "app/ui.py",
+        entry: "st.markdown(result.answer); st.json(details)",
+        summary: "Presents the final natural-language answer plus transparent metadata so participants can inspect what happened.",
+        inputs: "AgentResponse from the formatter.",
+        outputs: "Visible answer and JSON details in the chat UI.",
+        why: "This closes the loop by making the internals inspectable instead of magical.",
+        snippet: `with st.chat_message("assistant"):\n    st.markdown(result.answer)\n    st.json(details)`,
+        label: "Show result"
+      }
+    };
+
+    const scenarios = [
+      {
+        id: "fraud",
+        title: "Fraud Hunt",
+        prompt: "Show fraud for CUS007",
+        summary: "Routes to transaction lookup with fraud filtering enabled.",
+        branch: "transactions",
+        routeLabel: "Route: get_transactions with fraudOnly=true",
+        events: [
+          "User enters the fraud request in Streamlit.",
+          "run_agent() creates AgentState and enters the pipeline.",
+          "tool_decision extracts CUS007 and matches the fraud keyword.",
+          "tool_execution dispatches the transactions tool.",
+          "transactions.py builds fraudOnly=true and customerId=CUS007.",
+          "api/client.py calls the Java banking transactions endpoint.",
+          "response_formatter summarizes the first matching transactions.",
+          "UI renders the answer and the selected tool metadata."
+        ]
+      },
+      {
+        id: "profile",
+        title: "Profile Pull",
+        prompt: "Give me the profile for CUS007",
+        summary: "Falls back to profile lookup because the prompt contains a customer id but no stronger route keyword.",
+        branch: "customer",
+        routeLabel: "Route: get_customer_profile",
+        events: [
+          "User asks for a customer profile.",
+          "AgentState is created in graph.py.",
+          "tool_decision extracts CUS007 and selects get_customer_profile.",
+          "tool_execution dispatches the customer tool.",
+          "customer.py calls the customer endpoint through BankingApiClient.",
+          "Java returns the profile payload.",
+          "response_formatter turns the profile into a concise sentence.",
+          "The UI shows the answer and the selected tool details."
+        ]
+      },
+      {
+        id: "alerts",
+        title: "Alert Sweep",
+        prompt: "Show alerts for CUS007",
+        summary: "Matches the alerts route and forwards the customer id to the alerts endpoint.",
+        branch: "alerts",
+        routeLabel: "Route: get_alerts for customer CUS007",
+        events: [
+          "User submits an alerts request.",
+          "run_agent() enters the deterministic pipeline.",
+          "tool_decision matches the 'alert' keyword and extracts CUS007.",
+          "tool_execution dispatches the alerts tool.",
+          "alerts.py builds params for customerId=CUS007.",
+          "BankingApiClient calls the Java alerts endpoint.",
+          "response_formatter turns alert rows into a compact summary.",
+          "The rendered answer returns to the chat."
+        ]
+      }
+    ];
+
+    const layout = {
+      ui: { x: 34, y: 150 },
+      graph: { x: 252, y: 150 },
+      decision: { x: 470, y: 150 },
+      execution: { x: 1020, y: 150 },
+      api: { x: 1140, y: 312 },
+      java: { x: 1168, y: 628 },
+      transactions: { x: 408, y: 338, branch: true },
+      customer: { x: 596, y: 338, branch: true },
+      alerts: { x: 784, y: 338, branch: true },
+      spending: { x: 972, y: 338, branch: true },
+      formatter: { x: 680, y: 640 },
+      response: { x: 930, y: 640 }
+    };
+
+    const connectors = [
+      { from: "ui", to: "graph", kind: "forward" },
+      { from: "graph", to: "decision", kind: "forward" },
+      { from: "decision", to: "transactions", kind: "branch", branch: "transactions" },
+      { from: "decision", to: "customer", kind: "branch", branch: "customer" },
+      { from: "decision", to: "alerts", kind: "branch", branch: "alerts" },
+      { from: "decision", to: "spending", kind: "branch", branch: "spending" },
+      { from: "transactions", to: "execution", kind: "branch-return", branch: "transactions" },
+      { from: "customer", to: "execution", kind: "branch-return", branch: "customer" },
+      { from: "alerts", to: "execution", kind: "branch-return", branch: "alerts" },
+      { from: "spending", to: "execution", kind: "branch-return", branch: "spending" },
+      { from: "execution", to: "api", kind: "forward" },
+      { from: "api", to: "java", kind: "forward" },
+      { from: "java", to: "formatter", kind: "return" },
+      { from: "formatter", to: "response", kind: "return" }
+    ];
+
+    const grid = document.getElementById("flow-grid");
+    const visualShell = document.getElementById("visual-shell");
+    const flowStage = document.getElementById("flow-stage");
+    const connectorsSvg = document.getElementById("connectors");
+    const requestToken = document.getElementById("request-token");
+    const responseToken = document.getElementById("response-token");
+    const scenarioStrip = document.getElementById("scenario-strip");
+    const promptCopy = document.getElementById("prompt-copy");
+    const routeCopy = document.getElementById("route-copy");
+    const timeline = document.getElementById("timeline");
+    const playBtn = document.getElementById("play-btn");
+    const replayBtn = document.getElementById("replay-btn");
+    const tabButtons = Array.from(document.querySelectorAll(".tab-button"));
+    const flowPanel = document.getElementById("flow-panel");
+    const mcpPanel = document.getElementById("mcp-panel");
+    const detailPanel = document.querySelector(".detail-panel");
+    const controls = document.querySelector(".controls");
+
+    let currentScenario = scenarios[0];
+    let selectedNodeId = "ui";
+    let connectorEls = [];
+    let nodeEls = {};
+    let playing = false;
+    let replayHandle = null;
+
+    function createNode(id, meta, pos) {
+      const node = document.createElement("button");
+      node.className = `flow-node${pos.branch ? " branch" : ""}`;
+      node.dataset.node = id;
+      node.style.left = `${pos.x}px`;
+      node.style.top = `${pos.y}px`;
+      node.innerHTML = `
+        <div class="topline">
+          <span class="tag">${meta.group}</span>
+          <span class="kicker">${meta.label}</span>
+        </div>
+        <h3>${meta.title}</h3>
+        <p>${meta.summary}</p>
+      `;
+      node.addEventListener("click", () => {
+        selectedNodeId = id;
+        updateDetail(id);
+        syncNodeStates();
+      });
+      grid.appendChild(node);
+      nodeEls[id] = node;
+    }
+
+    function nodeCenter(id, side = "center") {
+      const pos = layout[id];
+      const width = pos.branch ? 170 : 190;
+      const height = pos.branch ? 98 : 112;
+      const cx = pos.x + width / 2;
+      const cy = pos.y + height / 2;
+
+      if (side === "left") return { x: pos.x, y: cy };
+      if (side === "right") return { x: pos.x + width, y: cy };
+      if (side === "top") return { x: cx, y: pos.y };
+      if (side === "bottom") return { x: cx, y: pos.y + height };
+      return { x: cx, y: cy };
+    }
+
+    function connectorPath(conn) {
+      if (conn.kind === "forward") {
+        const start = nodeCenter(conn.from, "right");
+        const end = nodeCenter(conn.to, "left");
+        const midX = (start.x + end.x) / 2;
+        return `M ${start.x} ${start.y} C ${midX} ${start.y}, ${midX} ${end.y}, ${end.x} ${end.y}`;
+      }
+
+      if (conn.kind === "branch") {
+        const start = nodeCenter(conn.from, "bottom");
+        const end = nodeCenter(conn.to, "top");
+        const midY = (start.y + end.y) / 2;
+        return `M ${start.x} ${start.y} C ${start.x} ${midY}, ${end.x} ${midY - 14}, ${end.x} ${end.y}`;
+      }
+
+      if (conn.kind === "branch-return") {
+        const start = nodeCenter(conn.from, "right");
+        const end = nodeCenter(conn.to, "bottom");
+        const bendX = end.x;
+        const bendY = start.y;
+        return `M ${start.x} ${start.y} C ${bendX} ${bendY}, ${bendX} ${bendY}, ${end.x} ${end.y}`;
+      }
+
+      const start = nodeCenter(conn.from, "bottom");
+      const end = nodeCenter(conn.to, "top");
+      const midY = (start.y + end.y) / 2;
+      return `M ${start.x} ${start.y} C ${start.x} ${midY}, ${end.x} ${midY}, ${end.x} ${end.y}`;
+    }
+
+    function drawConnectors() {
+      connectorsSvg.setAttribute("viewBox", `0 0 ${grid.clientWidth} ${grid.clientHeight}`);
+      connectorsSvg.innerHTML = "";
+      connectorEls = connectors.map((conn) => {
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", connectorPath(conn));
+        path.setAttribute("class", `connector${conn.kind === "return" ? " return" : ""}`);
+        path.dataset.from = conn.from;
+        path.dataset.to = conn.to;
+        if (conn.branch) path.dataset.branch = conn.branch;
+        connectorsSvg.appendChild(path);
+        return path;
+      });
+    }
+
+    function updateCanvasScale() {
+      const stageWidth = 1320;
+      if (!flowPanel.classList.contains("active")) return;
+      const scale = Math.min(1, visualShell.clientWidth / stageWidth);
+      flowStage.style.transform = `scale(${scale})`;
+      visualShell.style.height = `${Math.max(760 * scale, 520)}px`;
+    }
+
+    function setActiveTab(tabName) {
+      const isFlow = tabName === "flow";
+      flowPanel.classList.toggle("active", isFlow);
+      mcpPanel.classList.toggle("active", !isFlow);
+      detailPanel.style.display = isFlow ? "" : "none";
+      controls.style.display = isFlow ? "" : "none";
+
+      tabButtons.forEach((button) => {
+        const active = button.dataset.tab === tabName;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-selected", active ? "true" : "false");
+      });
+
+      if (isFlow) {
+        updateCanvasScale();
+        drawConnectors();
+      }
+    }
+
+    function renderScenarios() {
+      scenarioStrip.innerHTML = "";
+      scenarios.forEach((scenario) => {
+        const button = document.createElement("button");
+        button.className = `scenario${scenario.id === currentScenario.id ? " active" : ""}`;
+        button.dataset.scenario = scenario.id;
+        button.innerHTML = `
+          <div class="label">Scenario</div>
+          <strong>${scenario.prompt}</strong>
+          <div class="micro">${scenario.summary}</div>
+        `;
+        button.addEventListener("click", () => {
+          currentScenario = scenario;
+          promptCopy.textContent = scenario.prompt;
+          routeCopy.textContent = scenario.routeLabel;
+          renderScenarios();
+          renderTimeline();
+          syncNodeStates();
+        });
+        scenarioStrip.appendChild(button);
+      });
+    }
+
+    function updateDetail(id) {
+      const meta = nodeData[id];
+      document.getElementById("detail-group").textContent = meta.group;
+      document.getElementById("detail-title").textContent = meta.title;
+      document.getElementById("detail-summary").textContent = meta.summary;
+      document.getElementById("detail-file").textContent = meta.file;
+      document.getElementById("detail-entry").textContent = meta.entry;
+      document.getElementById("detail-inputs").textContent = meta.inputs;
+      document.getElementById("detail-outputs").textContent = meta.outputs;
+      document.getElementById("detail-why").textContent = meta.why;
+      document.getElementById("detail-code").textContent = meta.snippet;
+    }
+
+    function renderTimeline() {
+      timeline.innerHTML = "";
+      currentScenario.events.forEach((event, index) => {
+        const item = document.createElement("div");
+        item.className = "timeline-item";
+        item.innerHTML = `<strong>${index + 1}</strong><div>${event}</div>`;
+        timeline.appendChild(item);
+      });
+    }
+
+    function syncNodeStates(activeNodeId = null) {
+      Object.entries(nodeEls).forEach(([id, el]) => {
+        el.classList.toggle("selected", id === selectedNodeId);
+        el.classList.toggle("active", id === activeNodeId);
+        if (["transactions", "customer", "alerts", "spending"].includes(id)) {
+          el.classList.toggle("selected", id === currentScenario.branch || id === selectedNodeId);
+        }
+      });
+
+      connectorEls.forEach((path, index) => {
+        const conn = connectors[index];
+        const isActiveRoute =
+          conn.kind === "forward" ||
+          conn.kind === "return" ||
+          conn.branch === currentScenario.branch;
+
+        const shouldHot =
+          conn.kind === "forward" ||
+          conn.kind === "return" ||
+          conn.branch === currentScenario.branch;
+
+        path.classList.toggle("hot", shouldHot && (!conn.branch || conn.branch === currentScenario.branch));
+        if (conn.kind === "branch" || conn.kind === "branch-return") {
+          path.classList.toggle("hot", conn.branch === currentScenario.branch);
+        }
+      });
+    }
+
+    function pointForNode(id) {
+      return nodeCenter(id, "center");
+    }
+
+    function wait(ms) {
+      return new Promise((resolve) => {
+        replayHandle = setTimeout(resolve, ms);
+      });
+    }
+
+    async function animateToken(tokenEl, fromId, toId, duration = 720) {
+      const from = pointForNode(fromId);
+      const to = pointForNode(toId);
+      const start = performance.now();
+      tokenEl.classList.add("live");
+
+      return new Promise((resolve) => {
+        function tick(now) {
+          const t = Math.min((now - start) / duration, 1);
+          const eased = 1 - Math.pow(1 - t, 3);
+          const x = from.x + (to.x - from.x) * eased;
+          const y = from.y + (to.y - from.y) * eased;
+          tokenEl.setAttribute("cx", x);
+          tokenEl.setAttribute("cy", y);
+          if (t < 1) {
+            requestAnimationFrame(tick);
+          } else {
+            resolve();
+          }
+        }
+        requestAnimationFrame(tick);
+      });
+    }
+
+    async function playScenario() {
+      if (playing) return;
+      playing = true;
+      playBtn.textContent = "Playing...";
+      replayBtn.textContent = "Resetting...";
+      requestToken.classList.remove("live");
+      responseToken.classList.remove("live");
+
+      const branch = currentScenario.branch;
+      const activeSequence = ["ui", "graph", "decision", branch, "execution", "api", "java"];
+      const returnSequence = ["java", "formatter", "response"];
+
+      syncNodeStates();
+      updateDetail(selectedNodeId);
+
+      for (let i = 0; i < activeSequence.length; i++) {
+        const nodeId = activeSequence[i];
+        syncNodeStates(nodeId);
+        if (i === 0) {
+          const start = pointForNode(nodeId);
+          requestToken.setAttribute("cx", start.x);
+          requestToken.setAttribute("cy", start.y);
+          requestToken.classList.add("live");
+          await wait(280);
+        } else {
+          await animateToken(requestToken, activeSequence[i - 1], nodeId, 760);
+          await wait(120);
+        }
+      }
+
+      requestToken.classList.remove("live");
+
+      for (let i = 0; i < returnSequence.length; i++) {
+        const nodeId = returnSequence[i];
+        syncNodeStates(nodeId);
+        if (i === 0) {
+          const start = pointForNode(nodeId);
+          responseToken.setAttribute("cx", start.x);
+          responseToken.setAttribute("cy", start.y);
+          responseToken.classList.add("live");
+          await wait(260);
+        } else {
+          await animateToken(responseToken, returnSequence[i - 1], nodeId, 820);
+          await wait(120);
+        }
+      }
+
+      responseToken.classList.remove("live");
+      syncNodeStates(selectedNodeId);
+      playing = false;
+      playBtn.textContent = "Play Flow";
+      replayBtn.textContent = "Replay";
+    }
+
+    function init() {
+      Object.entries(layout).forEach(([id, pos]) => createNode(id, nodeData[id], pos));
+      drawConnectors();
+      renderScenarios();
+      renderTimeline();
+      updateDetail(selectedNodeId);
+      syncNodeStates();
+    }
+
+    playBtn.addEventListener("click", playScenario);
+    replayBtn.addEventListener("click", async () => {
+      requestToken.classList.remove("live");
+      responseToken.classList.remove("live");
+      syncNodeStates();
+      if (!playing) {
+        await playScenario();
+      }
+    });
+
+    tabButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        setActiveTab(button.dataset.tab);
+      });
+    });
+
+    window.addEventListener("resize", () => {
+      updateCanvasScale();
+      if (flowPanel.classList.contains("active")) {
+        drawConnectors();
+      }
+    });
+
+    init();
+    setActiveTab("flow");
+    updateCanvasScale();
+  </script>
+</body>
+</html>

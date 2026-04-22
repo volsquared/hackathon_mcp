@@ -1,0 +1,15 @@
+entities:
+  customer_id:
+    pattern: CUS followed by three digits, e.g. CUS007
+
+  fraud:
+    description: suspicious customer activity
+
+  alert:
+    description: a notification about a customer
+
+  risk_rating:
+    description: the customer's risk level
+
+  spending_summary:
+    description: a breakdown of customer spending

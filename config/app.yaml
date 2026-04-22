@@ -1,0 +1,19 @@
+llm:
+  enabled: true
+  provider: openai
+  model: gpt-4.1-mini
+  api_base:
+  api_key_env: OPENAI_API_KEY
+
+# Example combinations:
+# - provider: openai
+#   model: gpt-4.1-mini
+#   api_key_env: OPENAI_API_KEY
+#
+# - provider: gemini
+#   model: gemini-2.5-flash
+#   api_key_env: GEMINI_API_KEY
+#
+# - provider: claude
+#   model: claude-3-5-sonnet-latest
+#   api_key_env: ANTHROPIC_API_KEY

@@ -1,0 +1,111 @@
+tools:
+  - name: get_customer_profile
+    description: Retrieve one customer's profile, including status, segment, and risk rating.
+    use_for:
+      - Requests about a single customer's identity, status, segment, or risk rating
+      - Questions asking whether a customer is risky, high risk, or what their risk level is
+      - Questions that only need profile data and nothing else
+    examples:
+      - Show the profile for CUS007
+      - What is the risk rating for CUS007?
+      - Is CUS008 high risk?
+      - What segment is CUS008 in?
+    do_not_use_for:
+      - Requests that also ask about alerts - use get_customer_profile_and_alerts instead
+      - Requests that also ask about transactions or spending
+
+  - name: get_transactions
+    description: Retrieve transaction history for a customer, including fraud-flagged transactions.
+    use_for:
+      - Requests about transactions, purchases, or payment activity
+      - Requests about fraud, flagged transactions, or suspicious transaction activity
+      - Fraud-only transaction lookups
+    examples:
+      - Show fraud for CUS007
+      - List transactions for CUS007
+      - Show flagged transactions for CUS009
+      - What transactions has CUS007 made?
+    do_not_use_for:
+      - Requests about alerts - alerts are separate from transactions; use get_alerts
+      - Requests about spending summaries or grouped spend
+    out_of_scope_examples:
+      - Show alerts for CUS007
+      - Does CUS007 have any open alerts?
+
+  - name: get_spending_summary
+    description: Retrieve grouped spending summary for a single customer.
+    use_for:
+      - Requests about spending summaries or spend breakdowns
+      - Grouped spend by category, merchant, or channel for one customer
+    examples:
+      - Give me a spending summary for CUS007
+      - Show spend by category for CUS007
+      - Describe the spending behaviour for CUS014
+
+  - name: get_alerts
+    description: Retrieve alerts for a customer, optionally filtered by severity.
+    use_for:
+      - Requests specifically about alerts
+      - Questions about whether a customer has open or active alerts
+      - Questions filtered by alert severity
+    examples:
+      - Show alerts for CUS007
+      - Does CUS007 have any high severity alerts?
+      - Does CUS011 have active alerts?
+    do_not_use_for:
+      - Requests about fraud transactions - use get_transactions for those
+      - Requests about risk rating - use get_customer_profile for that
+    out_of_scope_examples:
+      - Show fraud for CUS007
+      - Is CUS008 high risk?
+
+  - name: get_full_picture
+    description: Chained workflow that retrieves the customer profile, alerts, and spending summary together.
+    use_for:
+      - Requests that need a complete view of a single customer across profile, alerts, and spending
+      - Questions referencing risk, alerts, and spending all in the same prompt
+      - Prompts asking for a full summary or complete overview of one customer
+    examples:
+      - Give me the full picture for CUS016
+      - Summarize risk, alerts, and spend for CUS016
+      - What is the complete overview for CUS016?
+      - Tell me everything about CUS016
+    do_not_use_for:
+      - Requests involving more than one customer - use compare_customers instead
+      - Requests that only mention profile and alerts but not spending - use get_customer_profile_and_alerts
+      - Comparison requests between customers
+    out_of_scope_examples:
+      - Compare CUS016 and CUS017
+      - Show me the full picture for CUS016 and CUS017
+      - Review the risk profile and alerts for CUS016
+
+  - name: compare_customers
+    description: Retrieves data for two customers so they can be compared.
+    use_for:
+      - Questions that mention two customers
+    examples:
+      - Compare CUS017 and CUS018
+    do_not_use_for:
+      - Requests involving only one customer
+    out_of_scope_examples:
+      - Show me CUS017
+
+  - name: get_customer_profile_and_alerts
+    description: Chained workflow that retrieves the customer's profile and alerts together, without spending data.
+    use_for:
+      - Requests that need both profile context and alert context for one customer
+      - Questions about risk or status combined with alerts, where spending is not needed
+      - Requests containing exactly one customer ID that mention both profile and alerts
+    examples:
+      - Review the risk profile and alerts for CUS007
+      - Give me the customer profile and active alerts for CUS007
+      - Summarize the risk rating and alerts for CUS007
+      - Does CUS007 have a high risk rating and any alerts?
+    do_not_use_for:
+      - Questions that also require spending or transaction analysis - use get_full_picture instead
+      - Questions comparing multiple customers
+      - Requests containing more than one customer ID
+    out_of_scope_examples:
+      - Compare CUS007 and CUS008 on risk and alerts
+      - Show spending, fraud, and alerts for CUS007
+      - Give me the full picture for CUS007
