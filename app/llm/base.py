@@ -16,6 +16,7 @@ class AnswerGenerationResult:
     answer: str
     confidence: str
     source: str
+    rationale: str | None = None
 
 
 class LLMClient(Protocol):
@@ -39,4 +40,7 @@ class LLMClient(Protocol):
         tool_result: Any,
         system_prompt: str | None = None,
     ) -> AnswerGenerationResult:
+        ...
+
+    def run_diagnostic_probe(self) -> str:
         ...

@@ -65,12 +65,21 @@ Recommended order:
 3. Install the Microsoft Python extension
 4. Confirm VS Code is using `.venv\Scripts\python.exe`
 
+## Logging
+
+The app writes logs to:
+
+- `logs/app.log`
+
+This includes real LLM routing, probe, and answer-generation exceptions with tracebacks, plus normal console output when running Streamlit.
+
 ## Environment
 
 Optional environment variables:
 
 - `DATA_API_URL` defaults to `http://localhost:8080`
 - `OPENAI_API_KEY` for local LLM setup
+- `GEMINI_API_KEY` if you are using Gemini directly or via an OpenAI-compatible proxy
 - `LLM_ENABLED`, `LLM_PROVIDER`, `LLM_MODEL`, `LLM_API_BASE`, `LLM_API_KEY_ENV` as overrides
 
 ## Optional LLM Mode
@@ -86,9 +95,18 @@ To enable live LLM routing and grounded answer generation:
 
 The LLM layer uses LangChain chat-model integrations for `openai`, `gemini`, and `claude`.
 
+This repo also supports `cortex` as a first-class provider label for OpenAI-compatible internal gateways.
+
+If you are routing through an internal OpenAI-compatible gateway such as CorteX, use:
+
+- `provider: cortex`
+- `model: gemini-2.5-flash` or `gemini-2.5-pro`
+- `LLM_API_BASE` or `llm.api_base` set to the gateway URL
+- `api_key_env` set to the env var that holds the shared key, for example `GEMINI_API_KEY`
+
 What "choose provider and model" means:
 
-- `provider` is the LLM vendor family, currently one of `openai`, `gemini`, or `claude`
+- `provider` is the LLM vendor family, currently one of `openai`, `gemini`, `claude`, or `cortex`
 - `model` is the model name string for that provider, for example:
   - `gpt-4.1-mini`
   - `gemini-2.5-flash`

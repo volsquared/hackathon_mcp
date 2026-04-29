@@ -1,15 +1,40 @@
+import logging
+
 from requests import RequestException
 
 from app.agent.state import AgentState
+from app.llm import build_llm_from_env
 from app.tools.alerts import get_alerts
 from app.tools.customer import get_customer_profile
 from app.tools.spending_summary import get_spending_summary
 from app.tools.transactions import get_transactions
 
+logger = logging.getLogger(__name__)
+
 
 def execute_tool(state: AgentState) -> AgentState:
     try:
-        if state.selected_tool == "get_customer_profile":
+        if state.selected_tool == "identify_runtime":
+            runtime = build_llm_from_env()
+            if runtime.is_ready and runtime.client:
+                state.raw_result = {
+                    "mode": runtime.mode,
+                    "provider": runtime.provider,
+                    "model": runtime.model,
+                    "summary": runtime.summary,
+                    "is_ready": runtime.is_ready,
+                    "live_probe": runtime.client.run_diagnostic_probe(),
+                }
+            else:
+                state.raw_result = {
+                    "mode": runtime.mode,
+                    "provider": runtime.provider,
+                    "model": runtime.model,
+                    "summary": runtime.summary,
+                    "is_ready": runtime.is_ready,
+                    "live_probe": None,
+                }
+        elif state.selected_tool == "get_customer_profile":
             state.raw_result = get_customer_profile(state.tool_input["customer_id"])
         elif state.selected_tool == "get_customer_profile_and_alerts":
             customer_id = state.tool_input["customer_id"]
@@ -63,6 +88,12 @@ def execute_tool(state: AgentState) -> AgentState:
         state.raw_result = {
             "error": "Failed to reach the Java API.",
             "details": str(exc),
+        }
+    except Exception as exc:
+        logger.exception("Execution failed for tool %s", state.selected_tool)
+        state.raw_result = {
+            "error": f"{type(exc).__name__}: {exc}",
+            "phase": "tool_execution",
         }
 
     return state

@@ -1,10 +1,13 @@
 import re
+import logging
 from typing import Any
 
 from app.agent.state import AgentState
 from app.llm import build_llm_from_env
 from app.llm.factory import load_system_prompt
 from app.models import AgentResponse
+
+logger = logging.getLogger(__name__)
 
 
 def _format_customer(result: dict[str, Any]) -> AgentResponse:
@@ -99,6 +102,26 @@ def _format_alerts(result: list[dict[str, Any]]) -> AgentResponse:
     )
 
 
+def _format_runtime_diagnostic(result: dict[str, Any]) -> AgentResponse:
+    provider = result.get("provider")
+    model = result.get("model")
+    mode = result.get("mode")
+    summary = result.get("summary")
+    live_probe = result.get("live_probe")
+
+    if isinstance(live_probe, str) and live_probe.strip():
+        answer = live_probe.strip()
+    else:
+        answer = "No LLM - Hardcoded path."
+
+    return AgentResponse(
+        answer=answer,
+        confidence="high",
+        source="tool",
+        data_points=[{"mode": mode, "provider": provider, "model": model, "summary": summary}],
+    )
+
+
 def format_response(state: AgentState) -> AgentResponse:
     if isinstance(state.raw_result, dict) and "error" in state.raw_result:
         return AgentResponse(
@@ -108,6 +131,9 @@ def format_response(state: AgentState) -> AgentResponse:
             data_points=[state.raw_result],
             selected_tool=state.selected_tool,
             tool_input=state.tool_input,
+            tool_reasoning=state.tool_reasoning,
+            llm_routing_error=state.llm_routing_error,
+            llm_answer_error=state.llm_answer_error,
         )
 
     runtime = build_llm_from_env()
@@ -127,11 +153,33 @@ def format_response(state: AgentState) -> AgentResponse:
                     data_points=state.raw_result if isinstance(state.raw_result, list) else [state.raw_result],
                     selected_tool=state.selected_tool,
                     tool_input=state.tool_input,
+                    tool_reasoning=state.tool_reasoning,
+                    answer_rationale=generated.rationale,
+                    llm_routing_error=state.llm_routing_error,
+                    llm_answer_error=state.llm_answer_error,
                 )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.exception(
+                "LLM answer generation failed for tool %s and input: %s",
+                state.selected_tool,
+                state.user_input,
+            )
+            state.llm_answer_error = f"{type(exc).__name__}: {exc}"
+            return AgentResponse(
+                answer=f"LLM answer generation failed: {type(exc).__name__}: {exc}",
+                confidence="low",
+                source="model",
+                data_points=state.raw_result if isinstance(state.raw_result, list) else [state.raw_result],
+                selected_tool=state.selected_tool,
+                tool_input=state.tool_input,
+                tool_reasoning=state.tool_reasoning,
+                llm_routing_error=state.llm_routing_error,
+                llm_answer_error=state.llm_answer_error,
+            )
 
-    if state.selected_tool == "get_customer_profile" and isinstance(state.raw_result, dict):
+    if state.selected_tool == "identify_runtime" and isinstance(state.raw_result, dict):
+        response = _format_runtime_diagnostic(state.raw_result)
+    elif state.selected_tool == "get_customer_profile" and isinstance(state.raw_result, dict):
         response = _format_customer(state.raw_result)
     elif state.selected_tool == "get_customer_profile_and_alerts" and isinstance(state.raw_result, dict):
         response = _format_customer_profile_and_alerts(state.raw_result)
@@ -166,4 +214,7 @@ def format_response(state: AgentState) -> AgentResponse:
 
     response.selected_tool = state.selected_tool
     response.tool_input = state.tool_input
+    response.tool_reasoning = state.tool_reasoning
+    response.llm_routing_error = state.llm_routing_error
+    response.llm_answer_error = state.llm_answer_error
     return response

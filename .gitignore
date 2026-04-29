@@ -13,4 +13,5 @@ output/
 .claude/
 claude-session.md
 gpt-session.md
-
+logs/
+logs/*

@@ -11,8 +11,10 @@ if str(PROJECT_ROOT) not in sys.path:
 from app.agent.graph import run_agent
 from app.config import load_app_config
 from app.llm.factory import build_llm_runtime
+from app.logging_config import setup_logging
 
 
+LOG_FILE = setup_logging()
 st.set_page_config(page_title="Hackathon Agent", page_icon=":bank:", layout="wide")
 
 config = load_app_config()
@@ -30,6 +32,7 @@ with st.sidebar:
     st.subheader("Runtime Mode")
     st.metric("Mode", llm_runtime.mode)
     st.caption(llm_runtime.summary)
+    st.caption(f"Logs: {LOG_FILE}")
     if llm_runtime.provider and llm_runtime.model:
         st.code(f"{llm_runtime.provider} / {llm_runtime.model}")
 
@@ -60,6 +63,10 @@ if prompt:
         "data_points": result.data_points,
         "selected_tool": result.selected_tool,
         "tool_input": result.tool_input,
+        "tool_reasoning": result.tool_reasoning,
+        "answer_rationale": result.answer_rationale,
+        "llm_routing_error": result.llm_routing_error,
+        "llm_answer_error": result.llm_answer_error,
     }
 
     st.session_state.messages.append(

@@ -17,7 +17,7 @@ from app.config import AppConfig, load_app_config
 from app.llm.base import AnswerGenerationResult, LLMClient, ToolChoiceResult
 
 
-SUPPORTED_PROVIDERS = {"openai", "gemini", "claude"}
+SUPPORTED_PROVIDERS = {"openai", "gemini", "claude", "cortex"}
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
@@ -58,6 +58,13 @@ class AnswerSchema(BaseModel):
     answer: str = Field(description="Final assistant response shown to the user.")
     confidence: Literal["high", "medium", "low"] = Field(description="Confidence level for the grounded answer.")
     source: Literal["tool", "model"] = Field(description="Whether the answer is grounded in tools or not.")
+    rationale: str | None = Field(
+        default=None,
+        description=(
+            "Optional short rationale grounded only in the supplied tool result. "
+            "Return null unless the user explicitly asks for reasoning, rationale, explanation, or why."
+        ),
+    )
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:
@@ -142,7 +149,7 @@ class LangChainLLMClient:
         self._model = self._build_model()
 
     def _build_model(self):
-        if self.provider == "openai":
+        if self.provider in {"openai", "cortex"}:
             kwargs: dict[str, Any] = {
                 "model": self.model,
                 "api_key": self.api_key,
@@ -221,6 +228,9 @@ class LangChainLLMClient:
                     (
                         "Write a concise banking answer grounded only in the supplied tool result.\n"
                         "Do not invent facts. If the tool result is empty, say so plainly.\n"
+                        "If the user explicitly asks for reasoning, rationale, explanation, or why, "
+                        "also return a short rationale of 1-3 sentences grounded in the tool result.\n"
+                        "Do not reveal hidden chain-of-thought. Keep the rationale brief and evidence-based.\n"
                         "Desired response shape reference: {answer_schema}\n"
                         "User request: {user_input}\n"
                         "Selected tool: {tool_name}\n"
@@ -244,7 +254,46 @@ class LangChainLLMClient:
             answer=response.answer.strip(),
             confidence=response.confidence,
             source=response.source,
+            rationale=response.rationale.strip() if isinstance(response.rationale, str) and response.rationale.strip() else None,
         )
+
+    def run_diagnostic_probe(self) -> str:
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                (
+                    "system",
+                    (
+                        "You are being used for a live connectivity and identity probe. "
+                        "Reply in one short sentence. "
+                        "If you know your model family or model name, include it. "
+                        "If you do not know it exactly, say that clearly. "
+                        "Also include the exact marker LIVE_LLM_PROBE_OK."
+                    ),
+                ),
+                (
+                    "human",
+                    (
+                        "Identify yourself as the live LLM currently answering this application request. "
+                        "Keep it concise."
+                    ),
+                ),
+            ]
+        )
+        response = self._model.invoke(prompt.invoke({}))
+        content = getattr(response, "content", response)
+        if isinstance(content, str):
+            return content.strip()
+        if isinstance(content, list):
+            parts: list[str] = []
+            for item in content:
+                if isinstance(item, str):
+                    parts.append(item)
+                elif isinstance(item, dict):
+                    text = item.get("text")
+                    if isinstance(text, str):
+                        parts.append(text)
+            return " ".join(part for part in parts if part).strip()
+        return str(content).strip()
 
 
 @dataclass(frozen=True)
@@ -275,7 +324,7 @@ def build_llm_runtime(config: AppConfig | None = None) -> LLMRuntime:
     if settings.provider not in SUPPORTED_PROVIDERS:
         return LLMRuntime(
             mode="llm-misconfigured",
-            summary=f"Unsupported provider '{settings.provider}'. Supported: openai, gemini, claude.",
+            summary=f"Unsupported provider '{settings.provider}'. Supported: openai, gemini, claude, cortex.",
             provider=settings.provider,
             model=settings.model,
         )

@@ -7,9 +7,11 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.agent.graph import run_agent
+from app.logging_config import setup_logging
 
 
 def main() -> None:
+    setup_logging()
     while True:
         prompt = input("Ask a banking question (or 'exit'): ").strip()
         if prompt.lower() in {"exit", "quit"}:

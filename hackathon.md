@@ -249,8 +249,39 @@ Stage 4: Shape The Answer For The Audience
     - Make the other version clearer and less internal-jargon heavy
     - Compare not just wording but structure, emphasis, and recommendations
     - Check whether the answer still stays grounded in the tool output
-  Aha: same data and same tools produce very different useful outputs depending on briefing
-  Revealed: without tests, prompt changes are still just guesswork
+  Problem solved:
+    The model can now produce answers shaped for the audience instead of just dumping raw findings.
+  Aha:
+    Same data and same tools produce very different useful outputs depending on briefing.
+  New problem revealed:
+    Once answer shape is under control, users immediately ask for explanation as well as conclusion.
+    The current prompt set can answer, but it does not yet define when or how to provide a short rationale.
+
+Optional Stage 4A: Add Short Rationale Mode
+  Activity:
+    Compare two prompt sets:
+    - baseline prompts that return answer only
+    - facilitator prompts that also return a short rationale when the user explicitly asks for it
+  Details:
+    - Keep the user query the same except for adding a phrase like "and include a short rationale" or "and explain briefly why"
+    - Observe that the baseline prompt set answers the question but does not intentionally support a separate rationale field
+    - Observe that the facilitator prompt set is explicitly brief by default, but can add a short evidence-based rationale on request
+    - Use the `Details` panel to inspect `answer_rationale` when it is present
+    - Keep the rationale short and grounded in tool results rather than asking for chain-of-thought
+    - Suggested prompt pairs:
+      1. `Give me the full picture on CUS015.`
+         `Give me the full picture on CUS015 and include a short rationale.`
+      2. `Which presents more risk right now, CUS017 or CUS018?`
+         `Which presents more risk right now, CUS017 or CUS018, and why?`
+      3. `Show fraud for CUS009.`
+         `Show fraud for CUS009 and explain briefly why that matters.`
+  Problem solved:
+    The facilitator prompt set can now add a controlled short rationale on request without changing code or tools.
+  Aha:
+    Prompt instructions alone can introduce an explanation mode, but only if that mode is specified clearly.
+  New problem revealed:
+    As soon as rationale is possible, it becomes another behavior that can drift.
+    Some answers will be too long, too vague, or insufficiently grounded unless rationale quality is tested explicitly.
 
 Stage 5: Write Ground Truth And Measure
   Activity:
@@ -262,10 +293,16 @@ Stage 5: Write Ground Truth And Measure
     - Read the existing eval cases before editing prompts
     - Treat each failing case as a statement of desired behavior
     - Add at least one case that checks answer content, not just selected tool
+    - Add at least one case that checks rationale behavior when the user explicitly asks for explanation
+    - Add at least one case that confirms rationale is absent or minimal when the user does not ask for it
     - Use `should_contain` and `should_not_contain` style checks where exact text is too brittle
     - Re-run the eval after each prompt change rather than batching lots of changes together
-  Aha: prompt engineering is a proper loop: write -> test -> measure -> improve
-  Revealed: ambiguous domain language still causes inconsistent routing and interpretation
+  Problem solved:
+    Prompt behavior is no longer judged by intuition alone; it is turned into an explicit specification.
+  Aha:
+    Prompt engineering is a proper loop: write -> test -> measure -> improve.
+  New problem revealed:
+    Even with tests, ambiguous domain language still causes inconsistent routing and interpretation.
 
 Stage 6: Define Ontology
   Activity:

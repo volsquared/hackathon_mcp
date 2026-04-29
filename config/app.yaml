@@ -1,14 +1,25 @@
 llm:
   enabled: true
-  provider: openai
-  model: gpt-4.1-mini
-  api_base:
-  api_key_env: OPENAI_API_KEY
+#  provider: cortex
+#  model: gemini-2.5-flash
+#  api_base:
+#  api_key_env: GEMINI_API_KEY
 
 # Example combinations:
-# - provider: openai
-#   model: gpt-4.1-mini
-#   api_key_env: OPENAI_API_KEY
+  provider: openai
+  model: gpt-4.1-mini
+  api_key_env: OPENAI_API_KEY
+#
+# OpenAI-compatible gateway example, including internal proxies such as CorteX:
+# - provider: cortex
+#   model: gemini-2.5-flash
+#   api_base: https://cortex.internal.example/v1
+#   api_key_env: GEMINI_API_KEY
+#
+# - provider: cortex
+#   model: gemini-2.5-pro
+#   api_base: https://cortex.internal.example/v1
+#   api_key_env: GEMINI_API_KEY
 #
 # - provider: gemini
 #   model: gemini-2.5-flash
