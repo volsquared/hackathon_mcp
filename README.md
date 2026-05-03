@@ -41,7 +41,7 @@ Start the Java API first in the sibling `java` project:
 
 ```powershell
 cd ..\java
-mvn quarkus:run
+mvn quarkus:dev
 ```
 
 Then run the Streamlit UI here:
@@ -153,3 +153,4 @@ Those require a broader planner or additional chained workflows, not just the cu
 - Agent/tool logic lives under `app/agent`, `app/tools`, and `app/api`.
 - Prompts are externalized under `prompts/`.
 - An interactive architecture walkthrough lives at `docs/flow.html`.
+

@@ -1,0 +1,3 @@
+T5_VERIFY_MARKER
+This file is a dedicated test fixture for T5 verification testing.
+Do not delete while T5 test stages are active in workflow.yaml.

@@ -86,6 +86,170 @@ Success Criteria:
 - the participant can run the app from VS Code
 
 
+WORKSHOP PROGRESS DB VERIFICATION
+---------------------------------
+
+Use this when verifying that the Java workshop foundation created and preserved the
+local participant state in SQLite.
+
+Database path:
+
+- `C:\Users\upadh\git\hackathon\java\data\progress.db`
+
+Open the SQLite shell from the Java repo:
+
+1. `sqlite3 data\progress.db`
+2. `.tables`
+3. `.headers on`
+4. `.mode column`
+
+Core verification queries:
+
+```sql
+SELECT participant_id, display_name, workflow_id, workflow_version, created_at, updated_at
+FROM participant_progress;
+
+SELECT participant_id, stage_id, status, completed_at
+FROM stage_state
+ORDER BY stage_id;
+```
+
+Expected Tranche 1 result:
+
+- `participant_progress` contains exactly one participant row
+- `workflow_id` matches the active workflow
+- `workflow_version` matches the active workflow version
+- `stage_state` may still be empty in Tranche 1
+
+Restart verification:
+
+1. stop the Java app
+2. start the Java app again
+3. re-run:
+
+```sql
+SELECT participant_id, workflow_id, workflow_version, created_at, updated_at
+FROM participant_progress;
+```
+
+The `participant_id` should remain unchanged across restarts. That confirms identity
+is bootstrap-only and survives restart correctly.
+
+
+FACILITATOR ADMIN CONTROLS
+--------------------------
+
+Use these after the Java workshop progression system is enabled. The admin surface is
+for facilitator recovery and score correction, not for normal participant flow.
+
+Admin entry points:
+
+- UI: `http://localhost:8080/admin`
+- Swagger: `http://localhost:8080/q/swagger-ui`
+
+Core admin read endpoints:
+
+- `GET /api/admin/progress`
+  - returns participant progress plus score adjustments
+- `GET /api/admin/history`
+  - returns append-only override history from `data/overrides.jsonl`
+
+Core admin mutation endpoints:
+
+- `POST /api/admin/stages/{stageId}/unlock`
+  - force-unlocks a locked stage
+- `POST /api/admin/stages/{stageId}/complete`
+  - force-completes a stage as facilitator override
+- `POST /api/admin/stages/{stageId}/skip`
+  - force-skips a stage as facilitator override
+- `POST /api/admin/stages/{stageId}/reopen`
+  - reopens a completed or skipped stage
+- `POST /api/admin/stages/{stageId}/score`
+  - overrides the stored score for a completed or skipped stage
+- `POST /api/admin/stages/{stageId}/adjustment`
+  - adds a stage-linked bonus or penalty adjustment
+- `POST /api/admin/participants/adjustment`
+  - adds a participant-level bonus or penalty adjustment
+- `POST /api/admin/participants/reset`
+  - resets participant progress to initial workflow state
+
+Important semantics:
+
+- Every admin mutation requires `reason`
+- `/score` is stage-specific
+- `/score` only accepts:
+  - `scoreSource: facilitator_override`
+- `/adjustment` is for:
+  - `source: bonus`
+  - `source: penalty`
+- Reopening a stage:
+  - resets that stage score to `0`
+  - deactivates stage-linked adjustments for that stage
+  - does not re-lock downstream stages
+- Reset:
+  - resets all stage states to the initial workflow state
+  - deactivates all adjustments
+  - resets `totalScore` to `0`
+
+Example request bodies:
+
+Score override:
+
+```json
+{
+  "scoreAwarded": 7,
+  "scoreSource": "facilitator_override",
+  "reason": "manual score correction"
+}
+```
+
+Stage adjustment:
+
+```json
+{
+  "amount": 3,
+  "source": "bonus",
+  "reason": "stage-specific bonus"
+}
+```
+
+Global adjustment:
+
+```json
+{
+  "amount": -2,
+  "source": "penalty",
+  "reason": "global penalty test"
+}
+```
+
+Reopen / unlock / complete / skip / reset:
+
+```json
+{
+  "reason": "facilitator override test"
+}
+```
+
+Recommended verification order:
+
+1. `GET /api/admin/progress`
+2. `POST /api/admin/stages/stage-0/complete`
+3. `POST /api/admin/stages/stage-0/score`
+4. `POST /api/admin/stages/stage-0/adjustment`
+5. `POST /api/admin/stages/stage-0/reopen`
+6. `POST /api/admin/participants/adjustment`
+7. `POST /api/admin/participants/reset`
+8. `GET /api/admin/history`
+
+What to verify:
+
+- `totalScore` recomputes after every score-affecting mutation
+- stage-linked adjustments become inactive after reopen
+- all adjustments become inactive after reset
+- every admin mutation produces an audit history entry
+
+
 PREBUILT INFRASTRUCTURE (facilitator builds before workshop)
 ------------------------------------------------------------
 

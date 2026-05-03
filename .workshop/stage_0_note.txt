@@ -1,0 +1,2 @@
+Stage 0 base scaffold.
+This represents the starter state before the correct option is applied.
