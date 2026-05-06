@@ -11,6 +11,8 @@ class AgentResponse(BaseModel):
     selected_tool: str | None = None
     tool_input: dict[str, Any] = Field(default_factory=dict)
     tool_reasoning: str | None = None
+    fallback_message: str | None = None
+    routing_trace: dict[str, Any] = Field(default_factory=dict)
     answer_rationale: str | None = None
     llm_routing_error: str | None = None
     llm_answer_error: str | None = None

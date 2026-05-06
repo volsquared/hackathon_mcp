@@ -91,7 +91,14 @@ One participant per machine. No password, no token.
 
 ### Static Workflow Definition
 
-Loaded from `data/workflow.yaml` at startup.
+Loaded from a profile-specific workflow file at startup.
+
+Current v1 runtime profiles:
+
+- `open` -> `data/workflow-open.yaml`
+- `challenge` -> `data/workflow-challenge.yaml`
+
+Profile selection is resolved from `workshop.profile` / `WORKSHOP_PROFILE`.
 
 Contains:
 
@@ -102,7 +109,12 @@ Contains:
 
 ### Mutable Participant State
 
-Persisted in `data/progress.db` (SQLite).
+Persisted in a profile-specific SQLite database.
+
+Current v1 runtime files:
+
+- `open` -> `data/progress-open.db`
+- `challenge` -> `data/progress-challenge.db`
 
 Contains:
 
@@ -114,7 +126,12 @@ Contains:
 
 ### Override Log
 
-Appended to `data/overrides.jsonl` on every facilitator action.
+Appended to a profile-specific JSONL log on every facilitator action.
+
+Current v1 runtime files:
+
+- `open` -> `data/overrides-open.jsonl`
+- `challenge` -> `data/overrides-challenge.jsonl`
 
 Each entry contains:
 
@@ -129,7 +146,15 @@ Each entry contains:
 
 ## Configuration
 
-Workflow is defined in `data/workflow.yaml`. No code change required to modify stages.
+Workflow is defined in a profile-specific YAML file. No code change is required to modify stages within a profile.
+
+Current v1 runtime profiles:
+
+- `open` -> `data/workflow-open.yaml`
+- `challenge` -> `data/workflow-challenge.yaml`
+
+The active profile is selected at startup through `workshop.profile` / `WORKSHOP_PROFILE`.
+Each profile resolves its own workflow file, participant progress database, and override log.
 
 ### Top-Level Fields
 
@@ -141,6 +166,21 @@ Workflow is defined in `data/workflow.yaml`. No code change required to modify s
 - `scoring_enabled`
 - `verification.python_project_path` -- absolute or relative path to the Python project root; used as cwd for all subprocess verification and scaffold file copy targets
 - `stages`
+
+### Runtime Profile Resolution
+
+The workshop runtime profile is an operational selector, not a YAML field.
+
+- `workshop.profile=open` resolves:
+  - `data/workflow-open.yaml`
+  - `data/progress-open.db`
+  - `data/overrides-open.jsonl`
+- `workshop.profile=challenge` resolves:
+  - `data/workflow-challenge.yaml`
+  - `data/progress-challenge.db`
+  - `data/overrides-challenge.jsonl`
+
+This separation is intentional. Open-mode participant state must not collide with challenge-mode participant state.
 
 ### Per-Stage Fields
 
@@ -545,6 +585,16 @@ Stale diffs are not detected automatically.
 - `created_at`
 - `updated_at`
 
+Participant progress identity in v1 is defined by:
+
+- `workflow_id`
+- `workflow_version`
+- `mode`
+- `learning_mode`
+
+If a stored participant record does not match the currently loaded workflow identity on these fields,
+the app must surface a workflow mismatch condition rather than silently treating the state as compatible.
+
 ### Stage State Record
 
 - `stage_id`
@@ -808,7 +858,7 @@ rejected, not silently allowed.
 
 ## YAML Validation
 
-`workflow.yaml` is validated at startup before any participant state is loaded.
+The active profile's workflow YAML is validated at startup before any participant state is loaded.
 A validation failure must produce a clear error and halt startup -- not silent corruption.
 
 Required validations:
@@ -827,7 +877,7 @@ Required validations:
 - Recognition mode stages have at least one `code_options` entry with `correct: true`
 - Recognition mode stages have a `confirmation` block with `trigger_function` and `output_file`
 
-If `workflow.yaml` fails validation, the app must not start.
+If the active workflow YAML fails validation, the app must not start.
 The facilitator must fix the config before participants can proceed.
 
 
@@ -853,7 +903,7 @@ Changes that require a version bump: adding, removing, or reordering stages, cha
 - A crashed verification script is logged; the facilitator can manually override
 - A malformed `workflow.yaml` must produce a clear startup error, not silent corruption
 - SQLite write failures are logged; state remains recoverable from last successful write
-- The override log is append-only; a write failure to the log does not block the override action
+- The override log is append-only; if writing the audit record fails, the override must be rejected and the state change rolled back
 
 
 ## Observability

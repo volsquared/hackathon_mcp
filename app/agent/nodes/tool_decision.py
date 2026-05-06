@@ -1,20 +1,16 @@
-import re
 import logging
+import re
 
 from app.agent.state import AgentState
-from app.llm import build_llm_from_env
-from app.llm.factory import load_available_tools, load_system_prompt, load_tool_descriptions
 
 logger = logging.getLogger(__name__)
+
+GENTLE_FALLBACK = "I'm not sure what you're looking for. Could you rephrase?"
 
 
 def _extract_customer_id(text: str) -> str | None:
     match = re.search(r"\bCUS\d{3}\b", text.upper())
     return match.group(0) if match else None
-
-
-def _extract_customer_ids(text: str) -> list[str]:
-    return re.findall(r"\bCUS\d{3}\b", text.upper())
 
 
 def _is_runtime_diagnostic_request(text: str) -> bool:
@@ -30,67 +26,26 @@ def _is_runtime_diagnostic_request(text: str) -> bool:
     return any(marker in normalized for marker in markers)
 
 
-def _deterministic_decide_tool(state: AgentState) -> AgentState:
-    text = state.user_input.lower()
-    customer_id = _extract_customer_id(state.user_input)
-    customer_ids = _extract_customer_ids(state.user_input)
-
-    if len(customer_ids) > 1:
-        comparison_markers = ("compare", "comparison", "versus", "vs")
-        unsupported_comparison_markers = ("last quarter", "last month", "over time", "trend", "quarter")
-        if any(marker in text for marker in unsupported_comparison_markers):
-            state.selected_tool = None
-            state.tool_input = {}
-            return state
-        if any(marker in text for marker in comparison_markers) or "full picture" in text:
-            state.selected_tool = "compare_customers"
-            state.tool_input = {
-                "customer_id_a": customer_ids[0],
-                "customer_id_b": customer_ids[1],
-            }
-            return state
-        state.selected_tool = None
-        state.tool_input = {}
-        return state
-
-    if not customer_id and any(keyword in text for keyword in ("fraud", "transaction", "alert", "spend", "summary", "profile", "risk")):
-        state.selected_tool = None
-        state.tool_input = {}
-        return state
-
-    if customer_id and "full picture" in text:
-        state.selected_tool = "get_full_picture"
-        state.tool_input = {"customer_id": customer_id}
-        return state
-
-    if customer_id and "alert" in text and ("risk" in text or "profile" in text):
-        state.selected_tool = "get_customer_profile_and_alerts"
-        state.tool_input = {"customer_id": customer_id}
-        return state
-
-    if "alert" in text:
-        state.selected_tool = "get_alerts"
-        state.tool_input = {"customer_id": customer_id}
-        return state
-
-    if "spend" in text or "summary" in text:
-        state.selected_tool = "get_spending_summary"
-        state.tool_input = {"customer_id": customer_id, "group_by": "category"}
-        return state
-
-    if "fraud" in text or "transaction" in text:
-        state.selected_tool = "get_transactions"
-        state.tool_input = {"customer_id": customer_id, "fraud_only": "fraud" in text}
-        return state
-
-    if customer_id:
-        state.selected_tool = "get_customer_profile"
-        state.tool_input = {"customer_id": customer_id}
-        return state
-
-    state.selected_tool = None
-    state.tool_input = {}
+def _record_trace(state: AgentState, *, matched_keyword: str | None, fallback_triggered: bool) -> AgentState:
+    state.routing_trace = {
+        "routing_mode": "deterministic",
+        "matched_keyword": matched_keyword or "none",
+        "selected_tool": state.selected_tool or "none",
+        "fallback_triggered": fallback_triggered,
+    }
     return state
+
+
+def _log_route_decision(state: AgentState, reason: str) -> None:
+    logger.info(
+        "tool-selection input=%r mode=%s matched_keyword=%s selected_tool=%s fallback=%s reason=%s",
+        state.user_input,
+        state.routing_trace.get("routing_mode", "unknown"),
+        state.routing_trace.get("matched_keyword", "none"),
+        state.routing_trace.get("selected_tool", "none"),
+        state.routing_trace.get("fallback_triggered", False),
+        reason,
+    )
 
 
 def decide_tool(state: AgentState) -> AgentState:
@@ -98,31 +53,51 @@ def decide_tool(state: AgentState) -> AgentState:
         state.selected_tool = "identify_runtime"
         state.tool_input = {}
         state.tool_reasoning = "Matched the built-in runtime diagnostic request."
+        state.fallback_message = None
+        state = _record_trace(state, matched_keyword="runtime_diagnostic", fallback_triggered=False)
+        _log_route_decision(state, "matched runtime diagnostic request")
         return state
 
-    runtime = build_llm_from_env()
-    available_tools = load_available_tools()
+    text = state.user_input.lower()
+    customer_id = _extract_customer_id(state.user_input)
+    state.fallback_message = None
 
-    if runtime.is_ready and runtime.client and available_tools:
-        try:
-            result = runtime.client.choose_tool(
-                user_input=state.user_input,
-                available_tools=available_tools,
-                tool_descriptions=load_tool_descriptions(),
-                system_prompt=load_system_prompt(),
-            )
-            if result.tool_name:
-                state.selected_tool = result.tool_name
-                state.tool_input = result.tool_input
-                state.tool_reasoning = result.reasoning
-                return state
-        except Exception as exc:
-            logger.exception("LLM tool routing failed for input: %s", state.user_input)
-            state.llm_routing_error = f"{type(exc).__name__}: {exc}"
-            state.fatal_error = {
-                "error": f"LLM tool routing failed: {type(exc).__name__}: {exc}",
-                "phase": "llm_routing",
-            }
-            return state
+    if customer_id and "profile" in text:
+        state.selected_tool = "get_customer_profile"
+        state.tool_input = {"customer_id": customer_id}
+        state.tool_reasoning = "Matched the hardcoded profile keyword."
+        state = _record_trace(state, matched_keyword="profile", fallback_triggered=False)
+        _log_route_decision(state, "matched profile keyword")
+        return state
 
-    return _deterministic_decide_tool(state)
+    if customer_id and "alert" in text:
+        state.selected_tool = "get_alerts"
+        state.tool_input = {"customer_id": customer_id}
+        state.tool_reasoning = "Matched the hardcoded alert keyword."
+        state = _record_trace(state, matched_keyword="alert", fallback_triggered=False)
+        _log_route_decision(state, "matched alert keyword")
+        return state
+
+    if customer_id and ("spend" in text or "summary" in text):
+        state.selected_tool = "get_spending_summary"
+        state.tool_input = {"customer_id": customer_id, "group_by": "category"}
+        state.tool_reasoning = "Matched the hardcoded spend/summary keyword."
+        state = _record_trace(state, matched_keyword="spend/summary", fallback_triggered=False)
+        _log_route_decision(state, "matched spend or summary keyword")
+        return state
+
+    if customer_id and ("fraud" in text or "transaction" in text):
+        state.selected_tool = "get_transactions"
+        state.tool_input = {"customer_id": customer_id, "fraud_only": "fraud" in text}
+        state.tool_reasoning = "Matched the hardcoded fraud/transaction keyword."
+        state = _record_trace(state, matched_keyword="fraud/transaction", fallback_triggered=False)
+        _log_route_decision(state, "matched fraud or transaction keyword")
+        return state
+
+    state.selected_tool = None
+    state.tool_input = {}
+    state.tool_reasoning = "No hardcoded keyword matched. Returning the gentle catch-all."
+    state.fallback_message = GENTLE_FALLBACK
+    state = _record_trace(state, matched_keyword=None, fallback_triggered=True)
+    _log_route_decision(state, "no keyword matched; returning gentle fallback")
+    return state

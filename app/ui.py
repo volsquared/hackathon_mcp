@@ -41,12 +41,29 @@ st.info(f"Running in `{llm_runtime.mode}` mode.")
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+
+def render_details(details: dict) -> None:
+    trace = details.get("routing_trace") or {}
+    if trace:
+        st.caption("Routing Trace")
+        st.code(
+            "\n".join(
+                [
+                    f"Matched keyword: {trace.get('matched_keyword', 'none')}",
+                    f"Selected tool:   {trace.get('selected_tool', 'none')}",
+                    f"Fallback:        {'triggered' if trace.get('fallback_triggered') else 'no'}",
+                ]
+            )
+        )
+    st.json(details)
+
+
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
         if message.get("details"):
             with st.expander("Details", expanded=False):
-                st.json(message["details"])
+                render_details(message["details"])
 
 prompt = st.chat_input("Example: Show fraud for CUS007")
 
@@ -64,6 +81,8 @@ if prompt:
         "selected_tool": result.selected_tool,
         "tool_input": result.tool_input,
         "tool_reasoning": result.tool_reasoning,
+        "fallback_message": result.fallback_message,
+        "routing_trace": result.routing_trace,
         "answer_rationale": result.answer_rationale,
         "llm_routing_error": result.llm_routing_error,
         "llm_answer_error": result.llm_answer_error,
@@ -76,4 +95,4 @@ if prompt:
     with st.chat_message("assistant"):
         st.markdown(result.answer)
         with st.expander("Details", expanded=False):
-            st.json(details)
+            render_details(details)

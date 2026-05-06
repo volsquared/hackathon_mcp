@@ -132,6 +132,8 @@ def format_response(state: AgentState) -> AgentResponse:
             selected_tool=state.selected_tool,
             tool_input=state.tool_input,
             tool_reasoning=state.tool_reasoning,
+            fallback_message=state.fallback_message,
+            routing_trace=state.routing_trace,
             llm_routing_error=state.llm_routing_error,
             llm_answer_error=state.llm_answer_error,
         )
@@ -154,6 +156,8 @@ def format_response(state: AgentState) -> AgentResponse:
                     selected_tool=state.selected_tool,
                     tool_input=state.tool_input,
                     tool_reasoning=state.tool_reasoning,
+                    fallback_message=state.fallback_message,
+                    routing_trace=state.routing_trace,
                     answer_rationale=generated.rationale,
                     llm_routing_error=state.llm_routing_error,
                     llm_answer_error=state.llm_answer_error,
@@ -173,6 +177,8 @@ def format_response(state: AgentState) -> AgentResponse:
                 selected_tool=state.selected_tool,
                 tool_input=state.tool_input,
                 tool_reasoning=state.tool_reasoning,
+                fallback_message=state.fallback_message,
+                routing_trace=state.routing_trace,
                 llm_routing_error=state.llm_routing_error,
                 llm_answer_error=state.llm_answer_error,
             )
@@ -203,7 +209,7 @@ def format_response(state: AgentState) -> AgentResponse:
             )
         else:
             response = AgentResponse(
-                answer=(
+                answer=state.fallback_message or (
                     "I could not map that request to a banking tool yet. Try asking about a "
                     "customer, fraud transactions, spending summary, or alerts."
                 ),
@@ -215,6 +221,8 @@ def format_response(state: AgentState) -> AgentResponse:
     response.selected_tool = state.selected_tool
     response.tool_input = state.tool_input
     response.tool_reasoning = state.tool_reasoning
+    response.fallback_message = state.fallback_message
+    response.routing_trace = state.routing_trace
     response.llm_routing_error = state.llm_routing_error
     response.llm_answer_error = state.llm_answer_error
     return response

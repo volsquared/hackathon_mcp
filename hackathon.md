@@ -92,13 +92,19 @@ WORKSHOP PROGRESS DB VERIFICATION
 Use this when verifying that the Java workshop foundation created and preserved the
 local participant state in SQLite.
 
-Database path:
+Database paths:
 
-- `C:\Users\upadh\git\hackathon\java\data\progress.db`
+- `C:\Users\upadh\git\hackathon\java\data\progress-open.db`
+- `C:\Users\upadh\git\hackathon\java\data\progress-challenge.db`
+
+Use the database that matches the active workshop mode:
+
+- `OPEN` -> `progress-open.db`
+- `CHALLENGE` -> `progress-challenge.db`
 
 Open the SQLite shell from the Java repo:
 
-1. `sqlite3 data\progress.db`
+1. `sqlite3 data\progress-open.db` or `sqlite3 data\progress-challenge.db`
 2. `.tables`
 3. `.headers on`
 4. `.mode column`
@@ -134,6 +140,46 @@ FROM participant_progress;
 
 The `participant_id` should remain unchanged across restarts. That confirms identity
 is bootstrap-only and survives restart correctly.
+
+
+BACKEND VERIFICATION SCRIPT (T1–T6)
+------------------------------------
+
+A reusable bash script for verifying the Java workshop backend end-to-end.
+
+Location: `C:\Users\upadh\git\hackathon\bridge\verify.sh`
+
+What it covers:
+- T1: startup, SQLite bootstrap, restart persistence
+- T2: stage unlock, skip, complete, reopen, score recomputation
+- T3: admin mutations, reason enforcement, audit log
+- T4: recognition flow (select → apply → finish), interaction state transitions
+- T5: file_contains (sync), script_exit_code (async), eval_case_passes (async),
+      pending-state polling, duplicate verify rejection, timeout
+- T6: informational only — lists known gaps, does not assert pass/fail
+
+Usage:
+
+```bash
+# Full run — wipes DB and bootstraps fresh
+bash verify.sh
+
+# Skip DB wipe (resume from existing state)
+bash verify.sh --no-wipe
+```
+
+The script pauses at exactly two points requiring a manual restart:
+1. After wiping the active profile database (`progress-open.db` or `progress-challenge.db`) — restart the Java app, then press Enter
+2. After adding T5 test stages to `workflow.yaml` — restart the Java app, then press Enter
+
+The script manages `workflow.yaml` backup/restore and creates/deletes its own test
+fixture automatically. When the run ends, `workflow.yaml` is restored to the original
+single-stage config and all temporary files are cleaned up.
+
+Prerequisites:
+- Java app running at `http://localhost:8080`
+- `sqlite3` binary at `C:\Users\upadh\git\sqllite3\sqlite3.exe`
+- Git Bash or WSL for running bash
 
 
 FACILITATOR ADMIN CONTROLS
