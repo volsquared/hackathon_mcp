@@ -44,14 +44,18 @@ if "messages" not in st.session_state:
 
 def render_details(details: dict) -> None:
     trace = details.get("routing_trace") or {}
+    tool_reasoning = details.get("tool_reasoning") or "none"
     if trace:
         st.caption("Routing Trace")
         st.code(
             "\n".join(
                 [
+                    f"Routing mode:    {trace.get('routing_mode', 'unknown')}",
                     f"Matched keyword: {trace.get('matched_keyword', 'none')}",
                     f"Selected tool:   {trace.get('selected_tool', 'none')}",
+                    f"Decision source: {trace.get('decision_source', 'n/a')}",
                     f"Fallback:        {'triggered' if trace.get('fallback_triggered') else 'no'}",
+                    f"Reasoning:       {tool_reasoning}",
                 ]
             )
         )

@@ -51,7 +51,10 @@ class ToolInputSchema(BaseModel):
 class ToolChoiceSchema(BaseModel):
     tool_name: ToolName | None = Field(default=None, description="Best tool for the request, or null if none fits.")
     tool_input: ToolInputSchema = Field(default_factory=ToolInputSchema)
-    reasoning: str | None = Field(default=None, description="Short explanation of the tool choice.")
+    reasoning: str = Field(
+        min_length=1,
+        description="Required short explanation of the tool choice in one sentence."
+    )
 
 
 class AnswerSchema(BaseModel):
@@ -137,7 +140,8 @@ def _normalize_tool_choice(choice: ToolChoiceSchema, available_tools: list[str])
     if tool_name == "get_spending_summary" and "group_by" not in tool_input:
         tool_input["group_by"] = "category"
 
-    return ToolChoiceResult(tool_name=tool_name, tool_input=tool_input, reasoning=choice.reasoning)
+    reasoning = choice.reasoning.strip()
+    return ToolChoiceResult(tool_name=tool_name, tool_input=tool_input, reasoning=reasoning)
 
 
 class LangChainLLMClient:
@@ -194,6 +198,8 @@ class LangChainLLMClient:
                         "Available tools:\n{tools_block}\n"
                         "Allowed tool_input keys: customer_id, customer_id_a, customer_id_b, fraud_only, group_by, severity.\n"
                         "Use null for tool_name if no tool fits.\n"
+                        "Always return a non-empty reasoning value of exactly one short sentence.\n"
+                        "The reasoning must cite the decisive wording or boundary that led to the choice.\n"
                         "Use customer IDs exactly as written, for example CUS007.\n"
                         'For spending summaries, default group_by to "category" when omitted.\n'
                         "User request: {user_input}"

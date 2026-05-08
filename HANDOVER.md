@@ -1,112 +1,239 @@
 # Session Handover
 
-Date: 2026-05-06
+Date: 2026-05-07
 
 ## Current Focus
 
-The live work is split across:
+Active work is split across:
 
-- `mcp/` for the Python banking-agent runtime and Streamlit UI
-- `java/` for the workshop flow, exercise YAML pipeline, and participant `/workshop` page
+- `mcp/` for the Python banking-agent runtime, prompts, and Streamlit UI
+- `java/` for workshop orchestration, exercise YAML, scaffolds, and participant `/workshop` UI
 
-The immediate product thread is still the participant exercise experience, especially how generic stage content should be rendered without hardcoding one-off layouts for a single exercise.
+The live thread now has two parts:
 
-## Live State Confirmed
+1. the participant experience for `ex-002` and `ex-003`
+2. groundwork for the next exercise around deliberate LLM tool-selection misfires caused by weak `tools.yaml`
 
-### `mcp` runtime
+## What Changed Today
 
-- The current router in `app/agent/nodes/tool_decision.py` is deterministic and keyword-based.
-- `routing_trace` is carried in `AgentState` and exposed in the Streamlit `Details` expander.
-- LLM answer generation still happens only after a tool result exists and only when the runtime is configured.
-- The baseline `ex-system-is-blind` teaching point is therefore still correct: the system does not understand intent; it matches hardcoded keywords.
+### `java` participant page
 
-### `java` workflow pipeline
+`ParticipantPageResource.java` was iterated heavily and is now materially ahead of the old handover state.
 
-The YAML-driven fields are wired end-to-end:
+Current participant-page state:
 
-- `description`
-- `exercise_brief`
-- `current_system_points`
-- `why_this_matters`
-- `context_snippet`
-- `pre_exercise_check`
-- `post_apply_guidance`
-- `observation_check`
+- lower `Hackathon Workshop` summary panel removed
+- hero renamed to `GenAI Lab`
+- `Recognition` and `Open Mode` / `Challenge Mode` moved into the top hero card
+- `Learning Intent` reduced to two lanes
+- `Your Assignment` made the visual centerpiece
+- `Pre-Exercise Check` made more generic and YAML-driven
+- duplicate precheck instruction rendering removed
+- `What this exercise teaches` formatting tightened
+- Routing/learning content is rendered through reusable JS block functions inside `ParticipantPageResource.java`
 
-Key files:
+Also fixed:
 
-- `java/src/main/java/com/hackathon/banking/workshop/config/WorkflowDefinition.java`
-- `java/src/main/java/com/hackathon/banking/workshop/config/WorkflowConfigService.java`
-- `java/src/main/java/com/hackathon/banking/workshop/config/WorkflowSummary.java`
-- `java/src/main/java/com/hackathon/banking/workshop/WorkshopFoundationService.java`
-- `java/src/main/java/com/hackathon/banking/workshop/progress/StageProgressView.java`
-- `java/src/main/java/com/hackathon/banking/resource/ParticipantPageResource.java`
+- visible formatting issues in the left learning column
+- the old broken/odd system-point marker issue
+- duplicate `Pre-Exercise Check` content
 
-### Participant page
+### `java` exercise content
 
-The current stage page is rendered from JS block functions inside `ParticipantPageResource.java`, including:
+`ex-002-system-is-blind` was refined:
 
-- `exerciseBriefBlock`
-- `contextSnippetBlock`
-- `preExerciseCheckBlock`
-- `assignmentBlock`
-- `postApplyGuidanceBlock`
-- `nextStepsBlock`
+- prompt pair now teaches a cleaner wording contrast around:
+  - `Show me the risk profile for CUS001`
+  - `Show me the risk situation for CUS001`
 
-This is already more structured than the older handover implied. Some of the earlier “outstanding issues” are stale now.
+`ex-003-give-it-a-brain` was updated to reflect the real intended participant flow:
 
-## Stale Notes Corrected
+- participants must replace two things after apply:
+  - `api_base` in `config/app.yaml` with the bank-supplied Cortex URL
+  - `GEMINI_API_KEY` in `.env` with the real workshop key
+- stage scaffold no longer copies `tool_decision.py`
+- `opt_a` now teaches Cortex + Gemini key wiring, not the older direct OpenAI path
+- wrong options were updated to fail for Cortex-relevant reasons
 
-The previous handover is no longer fully accurate.
+Updated files for `ex-003` include:
 
-- `.info-toggle` CSS is now defined.
-- `postApplyGuidanceBlock` already uses `renderRichText(...)`.
-- The participant page has moved beyond the earlier simpler callout structure.
+- `java/data/exercises/ex-003-give-it-a-brain/exercise.yaml`
+- `java/data/exercises/ex-003-give-it-a-brain/scaffolds/base/...`
+- `java/data/exercises/ex-003-give-it-a-brain/scaffolds/opt_a/...`
+- `java/data/exercises/ex-003-give-it-a-brain/scaffolds/opt_b/...`
+- `java/data/exercises/ex-003-give-it-a-brain/scaffolds/opt_c/...`
+- `java/data/exercises/ex-003-give-it-a-brain/scaffolds/opt_d/...`
 
-Do not rely on the old outstanding-issues list without re-reading the current code.
+### workflow ordering
 
-## Exercise State
+The active workflow files now keep only live exercises:
 
-Current exercises visible in `java/data/exercises/`:
-
-- `ex-001-evidence-routing`
 - `ex-002-system-is-blind`
-- `ex-004-explain-why`
+- `ex-003-give-it-a-brain`
 
-`ex-002-system-is-blind` currently teaches:
+`ex-001` and `ex-004` were removed from the active workflow for now.
 
-- the router only follows known keywords
-- adding `risk` is a local patch, not real intent understanding
-- prompt wording changes still break the system
+## `mcp` Runtime Changes
 
-Important content file:
+Two small but important product changes were made for the next exercise work:
 
-- `java/data/exercises/ex-002-system-is-blind/exercise.yaml`
+### Visible routing reasoning
 
-Important snippet:
+In `mcp/app/ui.py`, the visible Routing Trace now shows:
 
-- `java/data/exercises/ex-002-system-is-blind/snippets/current_tool_selection.py`
+- `routing_mode`
+- `matched_keyword`
+- `selected_tool`
+- `decision_source`
+- `fallback`
+- `tool_reasoning`
 
-## UI Direction To Preserve
+This matters because the next exercise likely depends on participants seeing why the model chose the wrong tool.
 
-The main product constraint is unchanged:
+### LLM tool-choice reasoning is now required
 
-- do not let the participant page overfit one exercise
-- keep content rendering generic enough for future exercises
-- prefer a small set of reusable panel/block types over bespoke stage-specific layout logic
+In `mcp/app/llm/factory.py`:
 
-That said, the user wants the main assignment area to feel like the visual centerpiece of the stage. The right way to do that is to strengthen the generic assignment panel, not to bake ex-002-specific assumptions into the framework.
+- `ToolChoiceSchema.reasoning` is now required and non-empty
+- the chooser prompt explicitly instructs the model to return one short sentence explaining the decisive boundary
 
-## Workspace Notes
+This was done so future tool-routing exercises do not depend on optional/null reasoning.
 
-- `mcp/` has local uncommitted changes.
-- `java/` is readable, but `git status` is currently blocked by Git `safe.directory` ownership checks for this user.
+## Important Findings For The Next Exercise
 
-## Suggested Next Step
+The next exercise is the deliberate misfire / weak `tools.yaml` exercise.
 
-If resuming tomorrow:
+Key findings:
+
+### 1. `tools.yaml` is the right main lever
+
+Tool selection loads descriptions from:
+
+- `mcp/prompts/tools.yaml`
+
+So the exercise can be scaffolded primarily around prompt-contract quality rather than code changes.
+
+### 2. Current weak `system.yaml` is a confounder
+
+Current `mcp/prompts/system.yaml` says to prefer the most comprehensive tool when in doubt.
+
+That means a misfire toward `get_full_picture` may be caused partly by system prompt policy, not just weak `tools.yaml`.
+
+For a clean exercise:
+
+- keep a fixed neutral/strong system prompt
+- vary only `tools.yaml`
+
+Otherwise the teaching point is muddy.
+
+### 3. Legacy deterministic routing is still a confounder
+
+The app still has deterministic keyword fallback for words like:
+
+- `risk`
+- `profile`
+- `alert`
+- `transaction`
+- `spend`
+- `summary`
+
+So prompts containing those words can collapse into deterministic routing if the LLM call fails.
+
+This matters because:
+
+- `Which customer is riskier right now, CUS017 or CUS018?`
+
+is not a clean prompt for the new exercise unless the LLM path is definitely working.
+
+Safer prompt candidates for tomorrow:
+
+- `Between CUS017 and CUS018, who deserves closer scrutiny right now?`
+- `Looking at CUS017 and CUS018 together, who should an analyst review first?`
+- `Which of CUS017 and CUS018 looks more concerning at the moment?`
+
+### 4. Live model validation is currently blocked from this shell
+
+Direct LLM tests from this environment currently fail with:
+
+- `SSL: CERTIFICATE_VERIFY_FAILED`
+- then `APIConnectionError`
+
+As a result:
+
+- the app falls back to deterministic routing in shell-based tests
+- I could not honestly validate “candidate weak `tools.yaml` set misfires consistently on the actual model” from this shell
+
+This is the main blocker for finishing the next exercise spec properly.
+
+## Candidate `tools.yaml` Degraded Sets Prepared
+
+These were prepared as starting points for tomorrow, but not yet validated on a working live LLM path:
+
+### Set A: Minimal overlap
+
+- `get_customer_profile`: "Get information about a customer."
+- `get_full_picture`: "Get a complete view of a customer."
+- `compare_customers`: "Compare two customers."
+
+### Set B: Comprehensiveness trap
+
+- `get_customer_profile`: "Get customer information, including risk details."
+- `get_full_picture`: "Get the fullest customer information available."
+- `compare_customers`: "Look at two customers together."
+
+### Set C: Boundary blur
+
+- `get_customer_profile`: "Use for customer status, risk, and general customer questions."
+- `get_full_picture`: "Use for broad questions about a customer."
+- `compare_customers`: "Use when looking at two customers."
+
+These are not yet confirmed stable enough for workshop use.
+
+## Claude / SRS State
+
+A detailed note for Claude was prepared covering:
+
+- why `tools.yaml` is the right lever
+- why `tool_reasoning` needed to be surfaced
+- why live validation must be empirical, not assumed on paper
+- why the weak system prompt is a confounder
+- why deterministic keywords contaminate certain prompt choices
+
+That note is complete. The missing input for Claude is the live observed misfire behavior from an actually working LLM path.
+
+## Verification Status
+
+Verified today:
+
+- `java` Maven compile passed after the participant page and exercise changes
+- `mcp` edited Python files parse cleanly (`ui.py`, `factory.py`)
+
+Not yet verified:
+
+- stable live LLM misfire behavior for candidate degraded `tools.yaml` sets
+
+## Recommended Next Step Tomorrow
 
 1. Re-read this file.
-2. Re-open `ParticipantPageResource.java`.
-3. Treat `assignmentBlock` as the main visual anchor, but keep the block generic.
-4. Review current code before trusting any older handover notes.
+2. Start from the next-exercise thread, not the ex-002/ex-003 UI thread.
+3. Validate the LLM path in a working runtime where outbound TLS is not blocked.
+4. Keep `system.yaml` fixed and neutral.
+5. Test the candidate degraded `tools.yaml` sets against a pinned two-customer prompt that avoids deterministic keywords.
+6. Record:
+   - selected tool
+   - visible `tool_reasoning`
+   - whether the misfire is stable enough for workshop use
+7. Only then finalize the SRS for the deliberate misfire exercise.
+
+## Most Important Practical Reminder
+
+Do not let the next exercise accidentally demonstrate:
+
+- weak `system.yaml`
+- deterministic fallback keywords
+- or broken network/TLS
+
+when the intended teaching point is:
+
+- ambiguous tool descriptions cause wrong LLM tool selection
+
