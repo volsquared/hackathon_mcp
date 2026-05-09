@@ -1,239 +1,197 @@
 # Session Handover
 
-Date: 2026-05-07
+Date: 2026-05-08
 
 ## Current Focus
 
-Active work is split across:
+Active work is still split across:
 
 - `mcp/` for the Python banking-agent runtime, prompts, and Streamlit UI
-- `java/` for workshop orchestration, exercise YAML, scaffolds, and participant `/workshop` UI
+- `java/` for workshop orchestration, exercise YAML, scaffolds, participant `/workshop` UI, and facilitator `/admin`
 
-The live thread now has two parts:
-
-1. the participant experience for `ex-002` and `ex-003`
-2. groundwork for the next exercise around deliberate LLM tool-selection misfires caused by weak `tools.yaml`
+The thread today moved from participant-page rendering into facilitator reset mechanics and the underlying state model.
 
 ## What Changed Today
 
-### `java` participant page
+### `java` participant page rendering
 
-`ParticipantPageResource.java` was iterated heavily and is now materially ahead of the old handover state.
+The `Stage Guidance` / post-apply guidance rendering bug shown in screenshot `../Bridge/35.jpg` was fixed in:
 
-Current participant-page state:
+- `java/src/main/java/com/hackathon/banking/resource/ParticipantPageResource.java`
 
-- lower `Hackathon Workshop` summary panel removed
-- hero renamed to `GenAI Lab`
-- `Recognition` and `Open Mode` / `Challenge Mode` moved into the top hero card
-- `Learning Intent` reduced to two lanes
-- `Your Assignment` made the visual centerpiece
-- `Pre-Exercise Check` made more generic and YAML-driven
-- duplicate precheck instruction rendering removed
-- `What this exercise teaches` formatting tightened
-- Routing/learning content is rendered through reusable JS block functions inside `ParticipantPageResource.java`
+Root cause:
 
-Also fixed:
+- `pre_exercise_check` content used `renderRichText(...)`
+- `post_apply_guidance` and the sidebar helper used raw `esc(...)`
+- so markdown-like multiline content rendered as one escaped paragraph with visible backticks and collapsed numbering
 
-- visible formatting issues in the left learning column
-- the old broken/odd system-point marker issue
-- duplicate `Pre-Exercise Check` content
+What changed:
 
-### `java` exercise content
+- `post_apply_guidance` now renders through `renderRichText(...)`
+- sidebar helper copy in `Stage Guidance` now also renders through `renderRichText(...)`
+- `renderRichText(...)` was extended to support simple ordered and unordered list blocks
+- CSS was updated so rich-text `ol` / `ul` blocks render cleanly
 
-`ex-002-system-is-blind` was refined:
+Result:
 
-- prompt pair now teaches a cleaner wording contrast around:
-  - `Show me the risk profile for CUS001`
-  - `Show me the risk situation for CUS001`
+- `ex-003` guidance now shows proper numbered steps and inline code formatting for:
+  - `config/app.yaml`
+  - `.env`
+  - `api_base`
+  - `llm-ready`
 
-`ex-003-give-it-a-brain` was updated to reflect the real intended participant flow:
+Verification:
 
-- participants must replace two things after apply:
-  - `api_base` in `config/app.yaml` with the bank-supplied Cortex URL
-  - `GEMINI_API_KEY` in `.env` with the real workshop key
-- stage scaffold no longer copies `tool_decision.py`
-- `opt_a` now teaches Cortex + Gemini key wiring, not the older direct OpenAI path
-- wrong options were updated to fail for Cortex-relevant reasons
+- `mvn -q -DskipTests compile` passed in `java/`
 
-Updated files for `ex-003` include:
+### `java` workflow content validation fix
+
+The failing Quarkus boot/test issue was traced to workflow validation:
+
+- `ex-give-it-a-brain` defined 6 `current_system_points`
+- validator hard-limit is 5 in `WorkflowConfigService`
+
+Fix made in:
 
 - `java/data/exercises/ex-003-give-it-a-brain/exercise.yaml`
-- `java/data/exercises/ex-003-give-it-a-brain/scaffolds/base/...`
-- `java/data/exercises/ex-003-give-it-a-brain/scaffolds/opt_a/...`
-- `java/data/exercises/ex-003-give-it-a-brain/scaffolds/opt_b/...`
-- `java/data/exercises/ex-003-give-it-a-brain/scaffolds/opt_c/...`
-- `java/data/exercises/ex-003-give-it-a-brain/scaffolds/opt_d/...`
 
-### workflow ordering
+Change:
 
-The active workflow files now keep only live exercises:
+- merged the two separate wiring bullets into one:
+  - `Cortex gateway and Gemini API key not wired together`
 
-- `ex-002-system-is-blind`
-- `ex-003-give-it-a-brain`
+This removes the startup validation failure without weakening the validator.
 
-`ex-001` and `ex-004` were removed from the active workflow for now.
+### `java` admin rewind feature
 
-## `mcp` Runtime Changes
+A new facilitator operation was added to rewind participant progress so a chosen stage becomes active again.
 
-Two small but important product changes were made for the next exercise work:
+Added files / endpoints:
 
-### Visible routing reasoning
+- `java/src/main/java/com/hackathon/banking/workshop/admin/AdminResetToStageRequest.java`
+- `POST /api/admin/participants/reset-to-stage`
 
-In `mcp/app/ui.py`, the visible Routing Trace now shows:
+Main code paths:
 
-- `routing_mode`
-- `matched_keyword`
-- `selected_tool`
-- `decision_source`
-- `fallback`
-- `tool_reasoning`
+- `java/src/main/java/com/hackathon/banking/resource/AdminResource.java`
+- `java/src/main/java/com/hackathon/banking/workshop/admin/AdminService.java`
+- `java/src/main/java/com/hackathon/banking/workshop/progress/ProgressRepository.java`
 
-This matters because the next exercise likely depends on participants seeing why the model chose the wrong tool.
+Admin page UI:
 
-### LLM tool-choice reasoning is now required
+- `/admin` top `Progress` panel now includes:
+  - stage dropdown
+  - reason box
+  - `Reset To Stage` button
 
-In `mcp/app/llm/factory.py`:
+Current semantics:
 
-- `ToolChoiceSchema.reasoning` is now required and non-empty
-- the chooser prompt explicitly instructs the model to return one short sentence explaining the decisive boundary
+- stages before `X`: preserved as-is
+- stage `X`: reset to active (`UNLOCKED` / `IDLE`)
+- stages after `X`:
+  - `CHALLENGE` mode: reset to `LOCKED`
+  - `OPEN` mode: reset to fresh `UNLOCKED`
+- stage-level adjustments for `X` and later are deactivated
+- participant totals are recomputed
+- admin audit log gets a `reset_to_stage` record
 
-This was done so future tool-routing exercises do not depend on optional/null reasoning.
+Compile verification:
 
-## Important Findings For The Next Exercise
+- `mvn -q -DskipTests compile` passed in `java/`
 
-The next exercise is the deliberate misfire / weak `tools.yaml` exercise.
+## Critical Finding: DB Rewind Is Not Workspace Rewind
 
-Key findings:
+This is the most important result from today.
 
-### 1. `tools.yaml` is the right main lever
+The new admin rewind currently rewinds database progress state, but it does **not** fully rewind the participant filesystem state.
 
-Tool selection loads descriptions from:
+Observed failure mode:
 
-- `mcp/prompts/tools.yaml`
+- facilitator reset progress to `ex-system-is-blind`
+- participant state in Java showed the earlier exercise correctly
+- after rebooting the Python app, it still came up `llm-ready`
 
-So the exercise can be scaffolded primarily around prompt-contract quality rather than code changes.
+Why:
 
-### 2. Current weak `system.yaml` is a confounder
+- rewinding to `ex-002` recopies only the base scaffold for `ex-002`
+- `ex-002` owns `app/agent/nodes/tool_decision.py`
+- `ex-003` previously wrote `config/app.yaml` and `.env`
+- those later file changes remain in the Python workspace
+- the Python runtime reads the real files, not the Java DB notion of exercise position
 
-Current `mcp/prompts/system.yaml` says to prefer the most comprehensive tool when in doubt.
+So the current feature is:
 
-That means a misfire toward `get_full_picture` may be caused partly by system prompt policy, not just weak `tools.yaml`.
+- **progress rewind**
 
-For a clean exercise:
+not:
 
-- keep a fixed neutral/strong system prompt
-- vary only `tools.yaml`
+- **workspace checkpoint restore**
 
-Otherwise the teaching point is muddy.
+This mismatch matters especially for:
 
-### 3. Legacy deterministic routing is still a confounder
+- `.env`
+- `config/app.yaml`
+- any future stage that mutates files not owned by earlier stages
 
-The app still has deterministic keyword fallback for words like:
+## Architectural Discussion Reached Today
 
-- `risk`
-- `profile`
-- `alert`
-- `transaction`
-- `spend`
-- `summary`
+We discussed whether to keep stage-specific file copies such as `init/` folders under scaffolds.
 
-So prompts containing those words can collapse into deterministic routing if the LLM call fails.
+Conclusion:
 
-This matters because:
+- that would solve some rollback problems
+- but it creates a serious sync/drift burden as real files evolve
+- it is too easy for workshop scaffolds/checkpoints to go stale relative to actual source
 
-- `Which customer is riskier right now, CUS017 or CUS018?`
+We also discussed using Git branches per stage.
 
-is not a clean prompt for the new exercise unless the LLM path is definitely working.
+Conclusion:
 
-Safer prompt candidates for tomorrow:
+- branches/tags are a much better **authoring** source of truth than hand-maintained scaffold snapshots
+- but they are the wrong **participant delivery** surface if exposed directly, because they leak the answer key too easily
 
-- `Between CUS017 and CUS018, who deserves closer scrutiny right now?`
-- `Looking at CUS017 and CUS018 together, who should an analyst review first?`
-- `Which of CUS017 and CUS018 looks more concerning at the moment?`
+Best current direction:
 
-### 4. Live model validation is currently blocked from this shell
+- use Git branches/tags internally as authoritative authoring checkpoints
+- generate workshop scaffolds/snippets/checkpoints from that source
+- do not expose those branches directly to participants
 
-Direct LLM tests from this environment currently fail with:
+The strongest reset model for later work is probably:
 
-- `SSL: CERTIFICATE_VERIFY_FAILED`
-- then `APIConnectionError`
+1. restore a canonical baseline participant workspace
+2. replay completed stages before target `X`
+3. make stage `X` active
+4. clear DB progress for `X` and later
 
-As a result:
+That would give a real checkpoint restore, not just DB rewind.
 
-- the app falls back to deterministic routing in shell-based tests
-- I could not honestly validate “candidate weak `tools.yaml` set misfires consistently on the actual model” from this shell
+## Recommended Next Step
 
-This is the main blocker for finishing the next exercise spec properly.
+Do **not** treat the current `reset-to-stage` feature as complete workshop checkpoint restore.
 
-## Candidate `tools.yaml` Degraded Sets Prepared
+The next real design decision should be about workspace authority and reset strategy:
 
-These were prepared as starting points for tomorrow, but not yet validated on a working live LLM path:
+Option A:
 
-### Set A: Minimal overlap
+- canonical baseline + replay of earlier completed stages
 
-- `get_customer_profile`: "Get information about a customer."
-- `get_full_picture`: "Get a complete view of a customer."
-- `compare_customers`: "Compare two customers."
+Option B:
 
-### Set B: Comprehensiveness trap
+- generated per-stage checkpoint snapshots from internal Git branches/tags
 
-- `get_customer_profile`: "Get customer information, including risk details."
-- `get_full_picture`: "Get the fullest customer information available."
-- `compare_customers`: "Look at two customers together."
+Option C:
 
-### Set C: Boundary blur
+- hand-maintained per-stage `init`/restore copies
 
-- `get_customer_profile`: "Use for customer status, risk, and general customer questions."
-- `get_full_picture`: "Use for broad questions about a customer."
-- `compare_customers`: "Use when looking at two customers."
+Recommendation:
 
-These are not yet confirmed stable enough for workshop use.
+- prefer `A` or `B`
+- avoid `C` unless the workshop stays very small and stable
 
-## Claude / SRS State
+## Practical Reminder
 
-A detailed note for Claude was prepared covering:
+If you use the new admin rewind right now:
 
-- why `tools.yaml` is the right lever
-- why `tool_reasoning` needed to be surfaced
-- why live validation must be empirical, not assumed on paper
-- why the weak system prompt is a confounder
-- why deterministic keywords contaminate certain prompt choices
-
-That note is complete. The missing input for Claude is the live observed misfire behavior from an actually working LLM path.
-
-## Verification Status
-
-Verified today:
-
-- `java` Maven compile passed after the participant page and exercise changes
-- `mcp` edited Python files parse cleanly (`ui.py`, `factory.py`)
-
-Not yet verified:
-
-- stable live LLM misfire behavior for candidate degraded `tools.yaml` sets
-
-## Recommended Next Step Tomorrow
-
-1. Re-read this file.
-2. Start from the next-exercise thread, not the ex-002/ex-003 UI thread.
-3. Validate the LLM path in a working runtime where outbound TLS is not blocked.
-4. Keep `system.yaml` fixed and neutral.
-5. Test the candidate degraded `tools.yaml` sets against a pinned two-customer prompt that avoids deterministic keywords.
-6. Record:
-   - selected tool
-   - visible `tool_reasoning`
-   - whether the misfire is stable enough for workshop use
-7. Only then finalize the SRS for the deliberate misfire exercise.
-
-## Most Important Practical Reminder
-
-Do not let the next exercise accidentally demonstrate:
-
-- weak `system.yaml`
-- deterministic fallback keywords
-- or broken network/TLS
-
-when the intended teaching point is:
-
-- ambiguous tool descriptions cause wrong LLM tool selection
-
+- the Java DB/progress state will move back
+- the Python workspace may still contain later-stage file mutations
+- therefore the runtime behavior may not match the rewound stage until workspace restore logic exists
