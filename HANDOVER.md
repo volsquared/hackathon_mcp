@@ -1,197 +1,167 @@
 # Session Handover
 
-Date: 2026-05-08
+Date: 2026-05-10
 
 ## Current Focus
 
-Active work is still split across:
+Active work remains split across:
 
 - `mcp/` for the Python banking-agent runtime, prompts, and Streamlit UI
-- `java/` for workshop orchestration, exercise YAML, scaffolds, participant `/workshop` UI, and facilitator `/admin`
+- `java/` for workshop orchestration, exercise YAML, participant `/workshop` UI, and facilitator `/admin`
 
-The thread today moved from participant-page rendering into facilitator reset mechanics and the underlying state model.
+The main thread in this session was cleaning up the participant workshop UI architecture after adding the new YAML-driven onboarding/context panels.
 
 ## What Changed Today
 
-### `java` participant page rendering
+### Participant workshop page is no longer rendered as HTML inside Java
 
-The `Stage Guidance` / post-apply guidance rendering bug shown in screenshot `../Bridge/35.jpg` was fixed in:
+The participant page was previously a giant inline HTML/CSS/JS text block inside:
 
 - `java/src/main/java/com/hackathon/banking/resource/ParticipantPageResource.java`
 
-Root cause:
+That pattern had already caused:
 
-- `pre_exercise_check` content used `renderRichText(...)`
-- `post_apply_guidance` and the sidebar helper used raw `esc(...)`
-- so markdown-like multiline content rendered as one escaped paragraph with visible backticks and collapsed numbering
+- repeated JavaScript escaping regressions
+- a Java string-constant size limit issue
+- harder browser debugging than necessary
 
-What changed:
+It has now been replaced with:
 
-- `post_apply_guidance` now renders through `renderRichText(...)`
-- sidebar helper copy in `Stage Guidance` now also renders through `renderRichText(...)`
-- `renderRichText(...)` was extended to support simple ordered and unordered list blocks
-- CSS was updated so rich-text `ol` / `ul` blocks render cleanly
+- a redirect-only `ParticipantPageResource.java`
+- static frontend files under Quarkus resources:
+  - `java/src/main/resources/META-INF/resources/workshop.html`
+  - `java/src/main/resources/META-INF/resources/workshop.css`
+  - `java/src/main/resources/META-INF/resources/workshop.js`
+
+Current routing:
+
+- `GET /workshop` redirects to `/workshop.html`
+- workshop data/actions still come from the existing JSON APIs in:
+  - `java/src/main/java/com/hackathon/banking/resource/WorkshopResource.java`
+
+Important correction:
+
+- The statement “no HTML/CSS/JS remains in Java” is only true for the participant page.
+- `AdminPageResource.java` still has the old inline-page pattern and was not refactored in this session.
+
+### YAML-driven background / flow / architecture panel remains in place
+
+The participant orientation work from the prior session is still in effect and is now served through the extracted static frontend.
+
+Exercise content is YAML-driven for the first three exercises:
+
+- `java/data/exercises/ex-001-evidence-routing/exercise.yaml`
+- `java/data/exercises/ex-002-system-is-blind/exercise.yaml`
+- `java/data/exercises/ex-003-give-it-a-brain/exercise.yaml`
+
+That content includes:
+
+- `background_panel`
+- MCP explainer text
+- flow title / intro
+- flow steps
+- architecture snapshot content
+- plain-English exercise context
+
+Java schema/model wiring for `background_panel` was already added previously and remains valid.
+
+### Static frontend regression fixes after extraction
+
+The first extracted `workshop.html/css/js` files came from an older served snapshot, so a few UI regressions reappeared and were fixed directly in the static assets.
+
+Restored/fixed in:
+
+- `java/src/main/resources/META-INF/resources/workshop.css`
+- `java/src/main/resources/META-INF/resources/workshop.js`
+
+Current intended behavior:
+
+- `Learning Intent` remains the default selected tab
+- when the user clicks `Flow & Arch`, the underlying `Background, Flow, And Architecture` section is already expanded
+- the `Architecture Flow` block uses the lighter workshop palette, not the dark navy version
+- the snapshot no longer repeats `JAVA APP` / `PYTHON APP` headers
+- diagram arrows are beefier and easier to notice
+- `JAVA APP` labels have better contrast
+- learning-intent system markers use check/cross symbols again rather than `OK/X`
+
+## Permission / Environment Notes
+
+This session spent time debugging an unexpected write-permission issue under:
+
+- `java/src/main/resources/META-INF`
+
+What was observed before the fix:
+
+- writes succeeded in:
+  - `java/`
+  - `java/src/`
+  - `java/src/main/`
+  - `java/src/main/resources/`
+- writes failed at:
+  - `java/src/main/resources/META-INF/`
+  - `java/src/main/resources/META-INF/resources/`
+
+That failure was confirmed by actually attempting to create `test.txt` files at each level and by direct `Copy-Item` failures.
+
+Later in the session the permissions were fixed externally, and after that:
+
+- a write probe to `META-INF` succeeded
+- `workshop.html`, `workshop.css`, and `workshop.js` were copied into `META-INF/resources`
+
+If this issue reappears later, it is not a Codex path-resolution problem; it is a real filesystem permission boundary at `META-INF`.
+
+## Verification
+
+Verified in this session:
+
+- `C:\Users\upadh\git\hackathon\java\tools\apache-maven-3.9.8\bin\mvn.cmd -q -DskipTests compile`
 
 Result:
 
-- `ex-003` guidance now shows proper numbered steps and inline code formatting for:
-  - `config/app.yaml`
-  - `.env`
-  - `api_base`
-  - `llm-ready`
+- compile passed after the participant-page extraction
+- compile passed again after restoring the static frontend UI fixes
 
-Verification:
+Live HTTP verification was not completed at the very end because nothing was listening on `http://localhost:8080` during the final check. The app needs to be started or restarted before manually checking:
 
-- `mvn -q -DskipTests compile` passed in `java/`
+- `/workshop`
+- `/workshop.html`
+- `/workshop.css`
+- `/workshop.js`
 
-### `java` workflow content validation fix
+## Important Files
 
-The failing Quarkus boot/test issue was traced to workflow validation:
+Participant page routing:
 
-- `ex-give-it-a-brain` defined 6 `current_system_points`
-- validator hard-limit is 5 in `WorkflowConfigService`
+- `java/src/main/java/com/hackathon/banking/resource/ParticipantPageResource.java`
 
-Fix made in:
+Participant APIs:
 
+- `java/src/main/java/com/hackathon/banking/resource/WorkshopResource.java`
+
+Static participant frontend:
+
+- `java/src/main/resources/META-INF/resources/workshop.html`
+- `java/src/main/resources/META-INF/resources/workshop.css`
+- `java/src/main/resources/META-INF/resources/workshop.js`
+
+Exercise YAML content:
+
+- `java/data/exercises/ex-001-evidence-routing/exercise.yaml`
+- `java/data/exercises/ex-002-system-is-blind/exercise.yaml`
 - `java/data/exercises/ex-003-give-it-a-brain/exercise.yaml`
 
-Change:
+Still-old admin page:
 
-- merged the two separate wiring bullets into one:
-  - `Cortex gateway and Gemini API key not wired together`
+- `java/src/main/java/com/hackathon/banking/resource/AdminPageResource.java`
 
-This removes the startup validation failure without weakening the validator.
+## Recommended Next Steps
 
-### `java` admin rewind feature
-
-A new facilitator operation was added to rewind participant progress so a chosen stage becomes active again.
-
-Added files / endpoints:
-
-- `java/src/main/java/com/hackathon/banking/workshop/admin/AdminResetToStageRequest.java`
-- `POST /api/admin/participants/reset-to-stage`
-
-Main code paths:
-
-- `java/src/main/java/com/hackathon/banking/resource/AdminResource.java`
-- `java/src/main/java/com/hackathon/banking/workshop/admin/AdminService.java`
-- `java/src/main/java/com/hackathon/banking/workshop/progress/ProgressRepository.java`
-
-Admin page UI:
-
-- `/admin` top `Progress` panel now includes:
-  - stage dropdown
-  - reason box
-  - `Reset To Stage` button
-
-Current semantics:
-
-- stages before `X`: preserved as-is
-- stage `X`: reset to active (`UNLOCKED` / `IDLE`)
-- stages after `X`:
-  - `CHALLENGE` mode: reset to `LOCKED`
-  - `OPEN` mode: reset to fresh `UNLOCKED`
-- stage-level adjustments for `X` and later are deactivated
-- participant totals are recomputed
-- admin audit log gets a `reset_to_stage` record
-
-Compile verification:
-
-- `mvn -q -DskipTests compile` passed in `java/`
-
-## Critical Finding: DB Rewind Is Not Workspace Rewind
-
-This is the most important result from today.
-
-The new admin rewind currently rewinds database progress state, but it does **not** fully rewind the participant filesystem state.
-
-Observed failure mode:
-
-- facilitator reset progress to `ex-system-is-blind`
-- participant state in Java showed the earlier exercise correctly
-- after rebooting the Python app, it still came up `llm-ready`
-
-Why:
-
-- rewinding to `ex-002` recopies only the base scaffold for `ex-002`
-- `ex-002` owns `app/agent/nodes/tool_decision.py`
-- `ex-003` previously wrote `config/app.yaml` and `.env`
-- those later file changes remain in the Python workspace
-- the Python runtime reads the real files, not the Java DB notion of exercise position
-
-So the current feature is:
-
-- **progress rewind**
-
-not:
-
-- **workspace checkpoint restore**
-
-This mismatch matters especially for:
-
-- `.env`
-- `config/app.yaml`
-- any future stage that mutates files not owned by earlier stages
-
-## Architectural Discussion Reached Today
-
-We discussed whether to keep stage-specific file copies such as `init/` folders under scaffolds.
-
-Conclusion:
-
-- that would solve some rollback problems
-- but it creates a serious sync/drift burden as real files evolve
-- it is too easy for workshop scaffolds/checkpoints to go stale relative to actual source
-
-We also discussed using Git branches per stage.
-
-Conclusion:
-
-- branches/tags are a much better **authoring** source of truth than hand-maintained scaffold snapshots
-- but they are the wrong **participant delivery** surface if exposed directly, because they leak the answer key too easily
-
-Best current direction:
-
-- use Git branches/tags internally as authoritative authoring checkpoints
-- generate workshop scaffolds/snippets/checkpoints from that source
-- do not expose those branches directly to participants
-
-The strongest reset model for later work is probably:
-
-1. restore a canonical baseline participant workspace
-2. replay completed stages before target `X`
-3. make stage `X` active
-4. clear DB progress for `X` and later
-
-That would give a real checkpoint restore, not just DB rewind.
-
-## Recommended Next Step
-
-Do **not** treat the current `reset-to-stage` feature as complete workshop checkpoint restore.
-
-The next real design decision should be about workspace authority and reset strategy:
-
-Option A:
-
-- canonical baseline + replay of earlier completed stages
-
-Option B:
-
-- generated per-stage checkpoint snapshots from internal Git branches/tags
-
-Option C:
-
-- hand-maintained per-stage `init`/restore copies
-
-Recommendation:
-
-- prefer `A` or `B`
-- avoid `C` unless the workshop stays very small and stable
-
-## Practical Reminder
-
-If you use the new admin rewind right now:
-
-- the Java DB/progress state will move back
-- the Python workspace may still contain later-stage file mutations
-- therefore the runtime behavior may not match the rewound stage until workspace restore logic exists
+1. Start the Java app and manually verify `/workshop` end to end in the browser.
+2. If the participant page looks correct, commit the static extraction separately from any admin-page changes.
+3. Later, apply the same refactor pattern to `AdminPageResource.java`:
+   - move inline admin HTML/CSS/JS to static files
+   - keep `/admin` as a redirect
+   - leave admin APIs untouched
+4. If needed, clean up the temporary duplicate copy under:
+   - `mcp/workshop_ui/`
+   Those files were used as the extraction staging area and may no longer be needed once the Java static resources are confirmed working.

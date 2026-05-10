@@ -62,13 +62,12 @@ def decide_tool(state: AgentState) -> AgentState:
     customer_id = _extract_customer_id(state.user_input)
     state.fallback_message = None
 
-    if customer_id and ("profile" in text or "risk" in text):
+    if customer_id and "profile" in text:
         state.selected_tool = "get_customer_profile"
         state.tool_input = {"customer_id": customer_id}
-        matched_keyword = "profile" if "profile" in text else "risk"
-        state.tool_reasoning = f"Matched the hardcoded {matched_keyword} keyword."
-        state = _record_trace(state, matched_keyword=matched_keyword, fallback_triggered=False)
-        _log_route_decision(state, f"matched {matched_keyword} keyword")
+        state.tool_reasoning = "Matched the hardcoded profile keyword."
+        state = _record_trace(state, matched_keyword="profile", fallback_triggered=False)
+        _log_route_decision(state, "matched profile keyword")
         return state
 
     if customer_id and "alert" in text:
