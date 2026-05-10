@@ -15,3 +15,4 @@ claude-session.md
 gpt-session.md
 logs/
 logs/*
+.workshop/overlay_config.json

@@ -14,3 +14,4 @@ class AgentState:
     routing_trace: dict[str, Any] = field(default_factory=dict)
     llm_routing_error: str | None = None
     llm_answer_error: str | None = None
+    trace_steps: list[dict[str, Any]] = field(default_factory=list)

@@ -20,7 +20,7 @@ def setup_logging() -> Path:
     root_logger.setLevel(logging.INFO)
 
     formatter = logging.Formatter(
-        fmt="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+        fmt="%(asctime)s %(levelname)s [%(name)s %(filename)s:%(funcName)s:%(lineno)d] %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
@@ -30,8 +30,6 @@ def setup_logging() -> Path:
         backupCount=3,
         encoding="utf-8",
     )
-    if LOG_FILE.exists() and LOG_FILE.stat().st_size > 0:
-        file_handler.doRollover()
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(formatter)
 

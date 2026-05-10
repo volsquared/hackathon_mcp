@@ -15,6 +15,7 @@ import yaml
 
 from app.config import AppConfig, load_app_config
 from app.llm.base import AnswerGenerationResult, LLMClient, ToolChoiceResult
+from app.runtime_overlays import get_format_payload, get_system_prompt_payload, get_tool_description_payload
 
 
 SUPPORTED_PROVIDERS = {"openai", "gemini", "claude", "cortex"}
@@ -77,13 +78,17 @@ def _load_yaml(path: Path) -> dict[str, Any]:
     return loaded if isinstance(loaded, dict) else {}
 
 
-def load_system_prompt() -> str:
-    payload = _load_yaml(_prompts_dir() / "system.yaml")
+def load_system_prompt(config: AppConfig | None = None) -> str:
+    payload = get_system_prompt_payload(config)
+    if not payload:
+        payload = _load_yaml(_prompts_dir() / "system.yaml")
     return str(payload.get("content") or "").strip()
 
 
-def load_available_tools() -> list[str]:
-    payload = _load_yaml(_prompts_dir() / "tools.yaml")
+def load_available_tools(config: AppConfig | None = None) -> list[str]:
+    payload = get_tool_description_payload(config)
+    if not payload:
+        payload = _load_yaml(_prompts_dir() / "tools.yaml")
     tools = payload.get("tools", [])
     if not isinstance(tools, list):
         return []
@@ -98,8 +103,10 @@ def load_available_tools() -> list[str]:
     return normalized
 
 
-def load_tool_descriptions() -> str:
-    payload = _load_yaml(_prompts_dir() / "tools.yaml")
+def load_tool_descriptions(config: AppConfig | None = None) -> str:
+    payload = get_tool_description_payload(config)
+    if not payload:
+        payload = _load_yaml(_prompts_dir() / "tools.yaml")
     tools = payload.get("tools", [])
     if not isinstance(tools, list):
         return ""
@@ -123,8 +130,10 @@ def load_tool_descriptions() -> str:
     return "\n".join(lines).strip()
 
 
-def load_answer_schema() -> str:
-    payload = _load_yaml(_prompts_dir() / "format.yaml")
+def load_answer_schema(config: AppConfig | None = None) -> str:
+    payload = get_format_payload(config)
+    if not payload:
+        payload = _load_yaml(_prompts_dir() / "format.yaml")
     schema = payload.get("output_schema", {})
     return str(schema)
 
@@ -340,6 +349,30 @@ def build_llm_runtime(config: AppConfig | None = None) -> LLMRuntime:
         return LLMRuntime(
             mode="llm-misconfigured",
             summary=f"LLM is enabled but {settings.api_key_env} is not set.",
+            provider=settings.provider,
+            model=settings.model,
+        )
+
+    if settings.provider == "cortex" and not settings.api_base:
+        return LLMRuntime(
+            mode="llm-misconfigured",
+            summary="LLM is enabled for cortex but api_base is missing.",
+            provider=settings.provider,
+            model=settings.model,
+        )
+
+    if settings.api_base and settings.api_base.startswith("REPLACE_WITH_"):
+        return LLMRuntime(
+            mode="llm-misconfigured",
+            summary="LLM api_base still contains a placeholder value.",
+            provider=settings.provider,
+            model=settings.model,
+        )
+
+    if api_key.startswith("REPLACE_WITH_"):
+        return LLMRuntime(
+            mode="llm-misconfigured",
+            summary=f"LLM is enabled but {settings.api_key_env} still contains a placeholder value.",
             provider=settings.provider,
             model=settings.model,
         )

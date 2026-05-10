@@ -29,6 +29,11 @@ with st.sidebar:
     if st.button("Architecture View", use_container_width=True):
         st.switch_page("pages/Architecture_Map.py")
     st.divider()
+    st.subheader("Overlay")
+    st.caption(
+        f"router={config.overlay.router} | exercise={config.overlay.exercise_id or 'none'} | option={config.overlay.option_applied or 'base'}"
+    )
+    st.divider()
     st.subheader("Runtime Mode")
     st.metric("Mode", llm_runtime.mode)
     st.caption(llm_runtime.summary)

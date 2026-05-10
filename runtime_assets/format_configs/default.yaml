@@ -1,0 +1,4 @@
+output_schema:
+  answer: string
+  confidence: high | medium | low
+  source: tool | model

@@ -1,0 +1,23 @@
+tools:
+  - name: get_customer_profile
+    description: Get basic customer name and account status only.
+
+  - name: get_transactions
+    description: Get a list of recent payments and purchases for a customer.
+
+  - name: get_spending_summary
+    description: Get a summary of what a customer has spent recently.
+
+  - name: get_alerts
+    description: Get fraud flags, suspicious activity, risk warnings, and alerts for a customer.
+
+  - name: get_full_picture
+    description: >
+      Get a complete view of a customer including profile, risk rating, fraud activity,
+      alerts, and spending. Use this for any general question about a customer.
+
+  - name: get_customer_profile_and_alerts
+    description: Get a customer's profile and any alerts or issues on their account.
+
+  - name: compare_customers
+    description: Retrieves data for two customers so they can be compared.

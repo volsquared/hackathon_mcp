@@ -3,9 +3,11 @@ import logging
 from typing import Any
 
 from app.agent.state import AgentState
+from app.config import load_app_config
 from app.llm import build_llm_from_env
 from app.llm.factory import load_system_prompt
 from app.models import AgentResponse
+from app.trace import add_trace_step
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +126,7 @@ def _format_runtime_diagnostic(result: dict[str, Any]) -> AgentResponse:
 
 def format_response(state: AgentState) -> AgentResponse:
     if isinstance(state.raw_result, dict) and "error" in state.raw_result:
+        add_trace_step(state, "response", "Formatting error response", py_file="app/agent/nodes/response_formatter.py", error=state.raw_result.get("error"))
         return AgentResponse(
             answer=state.raw_result["error"],
             confidence="low",
@@ -139,13 +142,15 @@ def format_response(state: AgentState) -> AgentResponse:
         )
 
     runtime = build_llm_from_env()
+    config = load_app_config()
     if runtime.is_ready and runtime.client and state.selected_tool and state.raw_result is not None:
+        add_trace_step(state, "response", "Attempting LLM answer generation", py_file="app/agent/nodes/response_formatter.py", mode=runtime.mode, selected_tool=state.selected_tool, llm_provider=runtime.provider, llm_model=runtime.model, llm_api_base=getattr(runtime.client, "api_base", None))
         try:
             generated = runtime.client.generate_answer(
                 user_input=state.user_input,
                 tool_name=state.selected_tool,
                 tool_result=state.raw_result,
-                system_prompt=load_system_prompt(),
+                system_prompt=load_system_prompt(config),
             )
             if generated.answer:
                 return AgentResponse(
@@ -184,20 +189,27 @@ def format_response(state: AgentState) -> AgentResponse:
             )
 
     if state.selected_tool == "identify_runtime" and isinstance(state.raw_result, dict):
+        add_trace_step(state, "response", "Formatting runtime diagnostic", py_file="app/agent/nodes/response_formatter.py")
         response = _format_runtime_diagnostic(state.raw_result)
     elif state.selected_tool == "get_customer_profile" and isinstance(state.raw_result, dict):
+        add_trace_step(state, "response", "Formatting tool response", py_file="app/agent/nodes/response_formatter.py", formatter="_format_customer")
         response = _format_customer(state.raw_result)
     elif state.selected_tool == "get_customer_profile_and_alerts" and isinstance(state.raw_result, dict):
+        add_trace_step(state, "response", "Formatting tool response", py_file="app/agent/nodes/response_formatter.py", formatter="_format_customer_profile_and_alerts")
         response = _format_customer_profile_and_alerts(state.raw_result)
     elif state.selected_tool == "get_transactions" and isinstance(state.raw_result, list):
+        add_trace_step(state, "response", "Formatting tool response", py_file="app/agent/nodes/response_formatter.py", formatter="_format_transactions")
         response = _format_transactions(state.raw_result)
     elif state.selected_tool == "get_spending_summary" and isinstance(state.raw_result, dict):
+        add_trace_step(state, "response", "Formatting tool response", py_file="app/agent/nodes/response_formatter.py", formatter="_format_spending_summary")
         response = _format_spending_summary(state.raw_result)
     elif state.selected_tool == "get_alerts" and isinstance(state.raw_result, list):
+        add_trace_step(state, "response", "Formatting tool response", py_file="app/agent/nodes/response_formatter.py", formatter="_format_alerts")
         response = _format_alerts(state.raw_result)
     else:
         customer_ids = re.findall(r"\bCUS\d{3}\b", state.user_input.upper())
         if len(customer_ids) > 1:
+            add_trace_step(state, "response", "Formatting fallback response", py_file="app/agent/nodes/response_formatter.py", branch="multi_customer_unsupported")
             response = AgentResponse(
                 answer=(
                     "This scaffold does not support multi-customer comparisons yet. "
@@ -208,6 +220,7 @@ def format_response(state: AgentState) -> AgentResponse:
                 data_points=[],
             )
         else:
+            add_trace_step(state, "response", "Formatting fallback response", py_file="app/agent/nodes/response_formatter.py", branch="gentle")
             response = AgentResponse(
                 answer=state.fallback_message or (
                     "I could not map that request to a banking tool yet. Try asking about a "
