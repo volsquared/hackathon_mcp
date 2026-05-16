@@ -42,6 +42,10 @@ class OverlaySettings:
     ontology: str = "none"
     exercise_id: str | None = None
     option_applied: str | None = None
+    confirmation_output_file: str | None = None
+    confirmation_trigger_function: str | None = None
+    confirmation_selected_tool: str | None = None
+    confirmation_matched_keyword: str | None = None
     llm: OverlayLLMSettings = OverlayLLMSettings()
 
 
@@ -95,6 +99,10 @@ def _parse_overlay_settings(payload: dict[str, Any]) -> OverlaySettings:
         ontology=str(payload.get("ontology") or "none"),
         exercise_id=str(payload["exercise_id"]) if payload.get("exercise_id") is not None else None,
         option_applied=str(payload["option_applied"]) if payload.get("option_applied") is not None else None,
+        confirmation_output_file=str(payload["confirmation_output_file"]) if payload.get("confirmation_output_file") is not None else None,
+        confirmation_trigger_function=str(payload["confirmation_trigger_function"]) if payload.get("confirmation_trigger_function") is not None else None,
+        confirmation_selected_tool=str(payload["confirmation_selected_tool"]) if payload.get("confirmation_selected_tool") is not None else None,
+        confirmation_matched_keyword=str(payload["confirmation_matched_keyword"]) if payload.get("confirmation_matched_keyword") is not None else None,
         llm=OverlayLLMSettings(
             enabled=_parse_bool(llm_payload.get("enabled")) if "enabled" in llm_payload else None,
             provider=str(llm_payload["provider"]) if llm_payload.get("provider") is not None else None,

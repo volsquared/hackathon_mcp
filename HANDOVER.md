@@ -1,167 +1,365 @@
 # Session Handover
 
-Date: 2026-05-10
+Date: 2026-05-11
 
-## Current Focus
+## Current State
 
-Active work remains split across:
+The workshop platform has been repivoted from scaffold/file-copy semantics to an overlay-driven runtime model.
 
-- `mcp/` for the Python banking-agent runtime, prompts, and Streamlit UI
-- `java/` for workshop orchestration, exercise YAML, participant `/workshop` UI, and facilitator `/admin`
+Current split of responsibilities:
 
-The main thread in this session was cleaning up the participant workshop UI architecture after adding the new YAML-driven onboarding/context panels.
+- `mcp/`
+  - stable Python runtime
+  - Streamlit UI
+  - routing, tool execution, response formatting
+  - runtime behavior selected from `.workshop/overlay_config.json`
+- `java/`
+  - workshop orchestration
+  - participant `/workshop` UI
+  - exercise YAML definitions
+  - participant progress DB
+  - writes overlay state into `mcp/.workshop/overlay_config.json`
 
-## What Changed Today
+The active workshop now only contains:
 
-### Participant workshop page is no longer rendered as HTML inside Java
+- `java/data/exercises/ex-002-system-is-blind`
+- `java/data/exercises/ex-003-give-it-a-brain`
 
-The participant page was previously a giant inline HTML/CSS/JS text block inside:
+Removed as part of cleanup:
 
-- `java/src/main/java/com/hackathon/banking/resource/ParticipantPageResource.java`
+- `ex-001-evidence-routing`
+- `ex-004-explain-why`
+- old scaffold-copy trees under `java/data/scaffolds/` and per-exercise scaffold directories that were no longer needed
 
-That pattern had already caused:
+## Major Architecture Change
 
-- repeated JavaScript escaping regressions
-- a Java string-constant size limit issue
-- harder browser debugging than necessary
+### Old model
 
-It has now been replaced with:
+The workshop previously relied on copying exercise scaffold files into the Python repo to simulate stage changes.
 
-- a redirect-only `ParticipantPageResource.java`
-- static frontend files under Quarkus resources:
-  - `java/src/main/resources/META-INF/resources/workshop.html`
-  - `java/src/main/resources/META-INF/resources/workshop.css`
-  - `java/src/main/resources/META-INF/resources/workshop.js`
+That model caused:
 
-Current routing:
+- hidden state
+- cross-stage drift
+- hard resets
+- unclear ownership between Java and Python
 
-- `GET /workshop` redirects to `/workshop.html`
-- workshop data/actions still come from the existing JSON APIs in:
-  - `java/src/main/java/com/hackathon/banking/resource/WorkshopResource.java`
+### New model
 
-Important correction:
+Java `Apply` now writes a declarative overlay file:
 
-- The statement “no HTML/CSS/JS remains in Java” is only true for the participant page.
-- `AdminPageResource.java` still has the old inline-page pattern and was not refactored in this session.
+- `mcp/.workshop/overlay_config.json`
 
-### YAML-driven background / flow / architecture panel remains in place
+Python reads that file at startup and resolves runtime behavior from stable registries.
 
-The participant orientation work from the prior session is still in effect and is now served through the extracted static frontend.
+Overlay surfaces currently supported:
 
-Exercise content is YAML-driven for the first three exercises:
+- `router`
+- `tool_descriptions`
+- `system_prompt`
+- `format`
+- `ontology`
+- `llm` settings
 
-- `java/data/exercises/ex-001-evidence-routing/exercise.yaml`
+Key Python files:
+
+- `mcp/app/config.py`
+- `mcp/app/runtime_overlays.py`
+- `mcp/app/agent/nodes/tool_decision.py`
+- `mcp/app/llm/factory.py`
+
+Key Java files:
+
+- `java/src/main/java/com/hackathon/banking/workshop/config/WorkflowDefinition.java`
+- `java/src/main/java/com/hackathon/banking/workshop/config/WorkflowSummary.java`
+- `java/src/main/java/com/hackathon/banking/workshop/config/WorkflowConfigService.java`
+- `java/src/main/java/com/hackathon/banking/workshop/progress/ProgressRepository.java`
+
+Registry assets live in:
+
+- `mcp/runtime_assets/`
+
+Important rule:
+
+- no stage-specific Python codepaths were introduced
+- stage behavior is selected by overlay values and registries, not by exercise ID branches
+
+## Exercise YAML Migration
+
+Both active exercises now use declarative overlay configuration instead of scaffold-copy semantics:
+
 - `java/data/exercises/ex-002-system-is-blind/exercise.yaml`
 - `java/data/exercises/ex-003-give-it-a-brain/exercise.yaml`
 
-That content includes:
+Each stage now defines:
 
-- `background_panel`
-- MCP explainer text
-- flow title / intro
-- flow steps
-- architecture snapshot content
-- plain-English exercise context
+- `base_overlay`
+- `code_options[].overlay`
+- `confirmation`
 
-Java schema/model wiring for `background_panel` was already added previously and remains valid.
+EX-02 base/correct behavior:
 
-### Static frontend regression fixes after extraction
+- base router: `deterministic`
+- correct option: `keyword_extended`
 
-The first extracted `workshop.html/css/js` files came from an older served snapshot, so a few UI regressions reappeared and were fixed directly in the static assets.
+EX-03 base/correct behavior:
 
-Restored/fixed in:
+- base router: `keyword_extended`
+- correct option: `semantic_v1` with LLM/Cortex overlay config
 
-- `java/src/main/resources/META-INF/resources/workshop.css`
-- `java/src/main/resources/META-INF/resources/workshop.js`
+Note:
 
-Current intended behavior:
+- EX-03 snippets still reference `config/app.yaml` and `.env` as participant-facing learning material
+- runtime behavior itself now comes from overlay config, not copied files
 
-- `Learning Intent` remains the default selected tab
-- when the user clicks `Flow & Arch`, the underlying `Background, Flow, And Architecture` section is already expanded
-- the `Architecture Flow` block uses the lighter workshop palette, not the dark navy version
-- the snapshot no longer repeats `JAVA APP` / `PYTHON APP` headers
-- diagram arrows are beefier and easier to notice
-- `JAVA APP` labels have better contrast
-- learning-intent system markers use check/cross symbols again rather than `OK/X`
+## Confirmation / Finish Flow
 
-## Permission / Environment Notes
+### UX model now
 
-This session spent time debugging an unexpected write-permission issue under:
+The workshop no longer waits for the UI to somehow detect filesystem writes.
 
-- `java/src/main/resources/META-INF`
+Current behavior:
 
-What was observed before the fix:
+1. participant selects correct option
+2. participant clicks `Apply`
+3. `Finish` becomes clickable immediately
+4. if participant clicks `Finish` too early, backend blocks completion and the UI tells them to run the Python exercise first
+5. after a valid run, `Finish` succeeds
 
-- writes succeeded in:
-  - `java/`
-  - `java/src/`
-  - `java/src/main/`
-  - `java/src/main/resources/`
-- writes failed at:
-  - `java/src/main/resources/META-INF/`
-  - `java/src/main/resources/META-INF/resources/`
+### Why this changed
 
-That failure was confirmed by actually attempting to create `test.txt` files at each level and by direct `Copy-Item` failures.
+Without websockets or polling, the browser cannot auto-enable `Finish` when a file appears in `.workshop/`.
 
-Later in the session the permissions were fixed externally, and after that:
+So the gate moved from button enablement to server-side validation on `Finish`.
 
-- a write probe to `META-INF` succeeded
-- `workshop.html`, `workshop.css`, and `workshop.js` were copied into `META-INF/resources`
+### Python confirmation write
 
-If this issue reappears later, it is not a Codex path-resolution problem; it is a real filesystem permission boundary at `META-INF`.
+Python writes completion files from:
 
-## Verification
+- `mcp/app/confirmation.py`
 
-Verified in this session:
+Triggered from:
 
-- `C:\Users\upadh\git\hackathon\java\tools\apache-maven-3.9.8\bin\mvn.cmd -q -DskipTests compile`
+- `mcp/app/agent/graph.py`
 
-Result:
+The completion file is only written when the run satisfies stage confirmation criteria.
 
-- compile passed after the participant-page extraction
-- compile passed again after restoring the static frontend UI fixes
+It is no longer written for:
 
-Live HTTP verification was not completed at the very end because nothing was listening on `http://localhost:8080` during the final check. The app needs to be started or restarted before manually checking:
+- nonsense prompts that hit fallback
+- `selected_tool = none`
+- `identify_runtime`
+- fatal errors
+- missing tool results
 
-- `/workshop`
-- `/workshop.html`
-- `/workshop.css`
-- `/workshop.js`
+### Stage-specific confirmation criteria
 
-## Important Files
+This was tightened further for EX-02.
 
-Participant page routing:
+EX-02 now only counts as exercised when the repaired route is actually used:
 
-- `java/src/main/java/com/hackathon/banking/resource/ParticipantPageResource.java`
+- `selected_tool == get_customer_profile`
+- `routing_trace.matched_keyword == risk`
 
-Participant APIs:
+This means:
 
-- `java/src/main/java/com/hackathon/banking/resource/WorkshopResource.java`
+- `Show me the risk situation for CUS001` counts
+- `Show me the risk profile for CUS001` does not
+- nonsense does not
 
-Static participant frontend:
+These criteria are declared in:
 
-- `java/src/main/resources/META-INF/resources/workshop.html`
-- `java/src/main/resources/META-INF/resources/workshop.css`
-- `java/src/main/resources/META-INF/resources/workshop.js`
-
-Exercise YAML content:
-
-- `java/data/exercises/ex-001-evidence-routing/exercise.yaml`
 - `java/data/exercises/ex-002-system-is-blind/exercise.yaml`
-- `java/data/exercises/ex-003-give-it-a-brain/exercise.yaml`
 
-Still-old admin page:
+And are propagated through:
 
-- `java/src/main/java/com/hackathon/banking/resource/AdminPageResource.java`
+- Java workflow config models
+- live overlay payload
+- Python confirmation logic
+
+Current confirmation files:
+
+- `.workshop/system_is_blind_complete.json`
+- `.workshop/give_it_a_brain_complete.json`
+
+## Open vs Challenge Mode
+
+### Runtime profile
+
+Java still defaults to `open` unless `WORKSHOP_PROFILE=challenge` is explicitly set.
+
+The selector is here:
+
+- `java/src/main/java/com/hackathon/banking/workshop/config/WorkshopRuntimeProfile.java`
+
+And `workflow-open.yaml` is still:
+
+- `mode: open`
+
+### Important fix
+
+Earlier in the refactor, open mode still behaved like challenge mode for stage locking because unlock logic did not branch by mode.
+
+That is now fixed.
+
+Current behavior:
+
+- `open`
+  - all stages unlock immediately
+- `challenge`
+  - `unlock_after` is respected
+
+Implemented in:
+
+- `java/src/main/java/com/hackathon/banking/workshop/progress/ProgressRepository.java`
+
+Specifically:
+
+- `initialStageState(...)`
+- `resetLaterStageState(...)`
+
+Important operational note:
+
+- existing rows in `progress-open.db` are not magically rewritten
+- after this change, you must reset progress or delete `progress-open.db` to see the corrected open-mode visibility cleanly
+
+## Runtime / Logging Improvements
+
+### Python trace output
+
+The Streamlit-side runtime now emits a coherent per-request trace block to console/logs, bounded by:
+
+```text
+==============================================
+...
+==============================================
+```
+
+It includes:
+
+- request phase
+- routing phase
+- execution phase
+- response phase
+- result phase
+- `py_file` for each step
+- full Java HTTP URL for banking calls
+- LLM call metadata when LLM routing/answering is active
+
+Key files:
+
+- `mcp/app/trace.py`
+- `mcp/app/agent/state.py`
+- `mcp/app/agent/graph.py`
+- `mcp/app/agent/nodes/tool_decision.py`
+- `mcp/app/agent/nodes/tool_execution.py`
+- `mcp/app/agent/nodes/response_formatter.py`
+
+### Logging fix
+
+Windows startup log rollover crash was fixed by removing forced eager rollover from:
+
+- `mcp/app/logging_config.py`
+
+## Known Current Behavior
+
+### EX-02
+
+Expected base state:
+
+- `router: deterministic`
+- `exercise_id: ex-system-is-blind`
+
+Expected tests:
+
+- `Show me the risk profile for CUS001`
+  - succeeds
+- `Show me the risk situation for CUS001`
+  - fails with fallback in base state
+- after correct apply
+  - `Show me the risk situation for CUS001` succeeds
+  - `How exposed are we with CUS001?` still fails
+
+### EX-03
+
+Expected base state after stage transition:
+
+- `router: keyword_extended`
+- `exercise_id: ex-give-it-a-brain`
+
+Correct apply should move runtime toward:
+
+- `router: semantic_v1`
+- LLM overlay set for Cortex/Gemini
+
+Note:
+
+- real LLM success still depends on valid workshop URL/key placeholders being replaced in live config/env inputs as instructed by the exercise
+
+## Reset Procedure
+
+For a clean workshop reset:
+
+In `java/data`:
+
+- delete `progress-open.db`
+- optionally delete `progress-challenge.db`
+- optionally delete `overrides-open.jsonl`
+- optionally delete `overrides-challenge.jsonl`
+
+In `mcp/.workshop`:
+
+- delete `overlay_config.json`
+- delete `*_complete.json`
+
+Recommended order after cleanup:
+
+1. start Java
+2. open `/workshop` once
+3. confirm Java recreated `.workshop/overlay_config.json`
+4. start or restart Streamlit
+
+If testing `open` mode stage visibility after the latest fix, use a fresh `progress-open.db` or `Reset Progress`.
+
+## Git / Cleanup Notes
+
+The following were intentionally cleaned up and should not be restored unless needed:
+
+- temporary extraction files from `mcp/`
+- `mcp/workshop_ui/`
+- old scaffold-copy exercise folders
+- abandoned exercise directories for EX-01 and EX-04
+
+`.gitignore` in `mcp/` includes:
+
+- `.workshop/overlay_config.json`
+
+## Verification Completed
+
+Verified repeatedly during this session:
+
+- Python compile checks via `.venv\Scripts\python.exe -m py_compile ...`
+- Java compile:
+
+```powershell
+C:\Users\upadh\git\hackathon\java\tools\apache-maven-3.9.8\bin\mvn.cmd -q -DskipTests compile
+```
+
+Compile passed after:
+
+- overlay architecture refactor
+- confirmation flow refactor
+- EX-02 route-specific confirmation criteria
+- open-vs-challenge unlock split
 
 ## Recommended Next Steps
 
-1. Start the Java app and manually verify `/workshop` end to end in the browser.
-2. If the participant page looks correct, commit the static extraction separately from any admin-page changes.
-3. Later, apply the same refactor pattern to `AdminPageResource.java`:
-   - move inline admin HTML/CSS/JS to static files
-   - keep `/admin` as a redirect
-   - leave admin APIs untouched
-4. If needed, clean up the temporary duplicate copy under:
-   - `mcp/workshop_ui/`
-   Those files were used as the extraction staging area and may no longer be needed once the Java static resources are confirmed working.
+1. Do a clean reset with fresh `progress-open.db` and `.workshop/overlay_config.json`.
+2. Re-verify `open` mode now shows both stages immediately.
+3. Re-apply EX-02 after restart so the latest confirmation criteria are written into the overlay payload.
+4. Manually retest:
+   - premature `Finish`
+   - nonsense prompt
+   - `risk profile`
+   - `risk situation`
+5. Decide whether EX-03 also needs stricter stage-specific confirmation criteria instead of the current generic “real non-fallback run” rule.

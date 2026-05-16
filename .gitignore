@@ -16,3 +16,4 @@ gpt-session.md
 logs/
 logs/*
 .workshop/overlay_config.json
+.workshop/*_complete.json

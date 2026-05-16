@@ -1,5 +1,5 @@
 llm:
-  enabled: false
+#  enabled: true
 #  provider: cortex
 #  model: gemini-2.5-flash
 #  api_base:
@@ -10,3 +10,10 @@ llm:
 #  model: gemini-2.5-flash
 #  api_base: REPLACE_WITH_BANK_CORTEX_URL
 #  api_key_env: GEMINI_API_KEY
+
+  enabled: true
+  provider: openai
+  model: gpt-4.1-mini
+  api_key_env: OPENAI_API_KEY
+
+

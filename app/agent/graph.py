@@ -4,6 +4,7 @@ from app.agent.nodes.response_formatter import format_response
 from app.agent.nodes.tool_decision import decide_tool
 from app.agent.nodes.tool_execution import execute_tool
 from app.agent.state import AgentState
+from app.confirmation import write_confirmation
 from app.models import AgentResponse
 from app.trace import add_trace_step, render_trace_report
 
@@ -22,5 +23,6 @@ def run_agent(user_input: str) -> AgentResponse:
         return response
     state = execute_tool(state)
     response = format_response(state)
+    write_confirmation("run_agent", state)
     logger.info("\n%s", render_trace_report(state, confidence=response.confidence, source=response.source))
     return response
