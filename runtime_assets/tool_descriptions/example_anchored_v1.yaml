@@ -1,0 +1,56 @@
+tools:
+  - name: get_customer_profile
+    description: >
+      Retrieve customer profile data.
+    examples:
+      - Show me the profile for CUS001.
+      - What is CUS007's onboarding status?
+      - Give me the risk profile for CUS003.
+
+  - name: get_transactions
+    description: >
+      Retrieve recent transaction activity for one customer.
+    examples:
+      - Show transactions for CUS002.
+      - Did CUS004 have suspicious payments?
+      - What did CUS010 buy recently?
+
+  - name: get_spending_summary
+    description: >
+      Retrieve a summary of customer spending.
+    examples:
+      - Summarize spending for CUS008.
+      - What categories is CUS011 spending on?
+      - Show spend summary for CUS006.
+
+  - name: get_alerts
+    description: >
+      Retrieve alerts and warnings for one customer.
+    examples:
+      - Show alerts for CUS005.
+      - Does CUS009 have any warnings?
+      - List suspicious activity flags for CUS012.
+
+  - name: get_full_picture
+    description: >
+      Retrieve the most complete view for one customer.
+    examples:
+      - Give me everything on CUS013.
+      - Show me the full picture for CUS014.
+      - I need the complete customer review for CUS015.
+
+  - name: get_customer_profile_and_alerts
+    description: >
+      Retrieve profile and alerts together for one customer.
+    examples:
+      - Show profile and alerts for CUS016.
+      - Give me customer details and warnings for CUS007.
+      - Review profile and issues for CUS018.
+
+  - name: compare_customers
+    description: >
+      Retrieve data for two customers when the question is a direct comparison.
+    examples:
+      - Which of CUS017 and CUS018 is riskier?
+      - Compare CUS001 and CUS002.
+      - Who is higher risk, CUS005 or CUS006?

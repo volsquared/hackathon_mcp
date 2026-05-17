@@ -1,0 +1,35 @@
+tools:
+  - name: get_customer_profile
+    description: >
+      Retrieve customer information, onboarding details, account status,
+      and general profile context for review.
+
+  - name: get_transactions
+    description: >
+      Retrieve recent customer transaction activity, payments, and purchase
+      behavior for review.
+
+  - name: get_spending_summary
+    description: >
+      Retrieve a summary of recent customer spending patterns and category
+      totals.
+
+  - name: get_alerts
+    description: >
+      Retrieve customer alerts, warnings, suspicious activity, and risk flags.
+
+  - name: get_full_picture
+    description: >
+      Retrieve a complete customer view including profile context, alerts, and
+      recent activity when a deeper investigation is needed.
+
+  - name: get_customer_profile_and_alerts
+    description: >
+      Retrieve customer information together with alerts or issues that may
+      need analyst attention. Use this when reviewing whether a customer needs
+      escalation or closer scrutiny.
+
+  - name: compare_customers
+    description: >
+      Retrieve data for two customers when the user explicitly asks for a
+      direct side-by-side comparison between them.

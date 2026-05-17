@@ -1,18 +1,16 @@
 # Session Handover
 
-Date: 2026-05-11
+Date: 2026-05-16
 
 ## Current State
 
-The workshop platform has been repivoted from scaffold/file-copy semantics to an overlay-driven runtime model.
-
-Current split of responsibilities:
+The workshop is still using the overlay-driven runtime model:
 
 - `mcp/`
   - stable Python runtime
   - Streamlit UI
-  - routing, tool execution, response formatting
-  - runtime behavior selected from `.workshop/overlay_config.json`
+  - router, tool execution, response formatting
+  - runtime behavior selected from `mcp/.workshop/overlay_config.json`
 - `java/`
   - workshop orchestration
   - participant `/workshop` UI
@@ -20,283 +18,209 @@ Current split of responsibilities:
   - participant progress DB
   - writes overlay state into `mcp/.workshop/overlay_config.json`
 
-The active workshop now only contains:
+Current exercise set in both workflow manifests:
 
 - `java/data/exercises/ex-002-system-is-blind`
 - `java/data/exercises/ex-003-give-it-a-brain`
+- `java/data/exercises/ex-004-ai-chose-wrong`
 
-Removed as part of cleanup:
+Workflow manifests now reference all three and were bumped to:
 
-- `ex-001-evidence-routing`
-- `ex-004-explain-why`
-- old scaffold-copy trees under `java/data/scaffolds/` and per-exercise scaffold directories that were no longer needed
+- `java/data/workflow-open.yaml`
+  - `version: v3-open`
+- `java/data/workflow-challenge.yaml`
+  - `version: v3-challenge`
 
-## Major Architecture Change
+## Important Changes From This Session
 
-### Old model
+### EX-03 LLM profile parameterization
 
-The workshop previously relied on copying exercise scaffold files into the Python repo to simulate stage changes.
+EX-03 was parameterized so the applied overlay can be driven by one workshop-level profile instead of hardcoding one provider path.
 
-That model caused:
+Files:
 
-- hidden state
-- cross-stage drift
-- hard resets
-- unclear ownership between Java and Python
-
-### New model
-
-Java `Apply` now writes a declarative overlay file:
-
-- `mcp/.workshop/overlay_config.json`
-
-Python reads that file at startup and resolves runtime behavior from stable registries.
-
-Overlay surfaces currently supported:
-
-- `router`
-- `tool_descriptions`
-- `system_prompt`
-- `format`
-- `ontology`
-- `llm` settings
-
-Key Python files:
-
-- `mcp/app/config.py`
-- `mcp/app/runtime_overlays.py`
-- `mcp/app/agent/nodes/tool_decision.py`
-- `mcp/app/llm/factory.py`
-
-Key Java files:
-
-- `java/src/main/java/com/hackathon/banking/workshop/config/WorkflowDefinition.java`
-- `java/src/main/java/com/hackathon/banking/workshop/config/WorkflowSummary.java`
 - `java/src/main/java/com/hackathon/banking/workshop/config/WorkflowConfigService.java`
-- `java/src/main/java/com/hackathon/banking/workshop/progress/ProgressRepository.java`
-
-Registry assets live in:
-
-- `mcp/runtime_assets/`
-
-Important rule:
-
-- no stage-specific Python codepaths were introduced
-- stage behavior is selected by overlay values and registries, not by exercise ID branches
-
-## Exercise YAML Migration
-
-Both active exercises now use declarative overlay configuration instead of scaffold-copy semantics:
-
-- `java/data/exercises/ex-002-system-is-blind/exercise.yaml`
 - `java/data/exercises/ex-003-give-it-a-brain/exercise.yaml`
 
-Each stage now defines:
+Behavior:
 
-- `base_overlay`
-- `code_options[].overlay`
-- `confirmation`
+- default behavior remains Cortex/Gemini
+- single env var override supported:
+  - `WORKSHOP_LLM_PROFILE=gpt`
+  - supported values:
+    - `cortex` / `gemini`
+    - `gpt` / `openai`
 
-EX-02 base/correct behavior:
+Important detail:
 
-- base router: `deterministic`
-- correct option: `keyword_extended`
+- the actual runtime overlay written by Java is still resolved from exercise YAML
+- display-only JSON snippets do not resolve placeholders automatically
 
-EX-03 base/correct behavior:
+Also added:
 
-- base router: `keyword_extended`
-- correct option: `semantic_v1` with LLM/Cortex overlay config
+- startup log line for resolved LLM profile in `WorkflowConfigService.java`
 
-Note:
+### Observation check UI fix
 
-- EX-03 snippets still reference `config/app.yaml` and `.env` as participant-facing learning material
-- runtime behavior itself now comes from overlay config, not copied files
+The participant observation-check section no longer disappears after `Finish`.
 
-## Confirmation / Finish Flow
+File:
 
-### UX model now
+- `java/src/main/resources/META-INF/resources/workshop.js`
 
-The workshop no longer waits for the UI to somehow detect filesystem writes.
+Behavior now:
 
-Current behavior:
+- editable while stage is `UNLOCKED` and `APPLIED`
+- visible read-only after terminal state:
+  - `COMPLETED`
+  - `SKIPPED`
 
-1. participant selects correct option
-2. participant clicks `Apply`
-3. `Finish` becomes clickable immediately
-4. if participant clicks `Finish` too early, backend blocks completion and the UI tells them to run the Python exercise first
-5. after a valid run, `Finish` succeeds
+### `.gitignore`
 
-### Why this changed
+Selective workshop runtime ignores now include:
 
-Without websockets or polling, the browser cannot auto-enable `Finish` when a file appears in `.workshop/`.
+- `.workshop/overlay_config.json`
+- `.workshop/*_complete.json`
 
-So the gate moved from button enablement to server-side validation on `Finish`.
+File:
 
-### Python confirmation write
+- `mcp/.gitignore`
 
-Python writes completion files from:
+## EX-04 Status
 
-- `mcp/app/confirmation.py`
+### What was implemented
 
-Triggered from:
+A new exercise was added:
 
-- `mcp/app/agent/graph.py`
+- `java/data/exercises/ex-004-ai-chose-wrong/exercise.yaml`
 
-The completion file is only written when the run satisfies stage confirmation criteria.
+Supporting assets were added:
 
-It is no longer written for:
+- `java/data/exercises/ex-004-ai-chose-wrong/overlays/base.json`
+- `java/data/exercises/ex-004-ai-chose-wrong/overlays/opt_a.json`
+- `java/data/exercises/ex-004-ai-chose-wrong/overlays/opt_b.json`
+- `java/data/exercises/ex-004-ai-chose-wrong/overlays/opt_c.json`
+- `java/data/exercises/ex-004-ai-chose-wrong/overlays/opt_d.json`
 
-- nonsense prompts that hit fallback
-- `selected_tool = none`
-- `identify_runtime`
-- fatal errors
-- missing tool results
+New runtime asset packs:
 
-### Stage-specific confirmation criteria
+- `mcp/runtime_assets/tool_descriptions/ambiguous_v1.yaml`
+- `mcp/runtime_assets/tool_descriptions/clear_disambiguated_v1.yaml`
+- `mcp/runtime_assets/tool_descriptions/keyword_heavy_v1.yaml`
+- `mcp/runtime_assets/tool_descriptions/example_anchored_v1.yaml`
+- `mcp/runtime_assets/system_prompts/neutral_tool_routing_v1.yaml`
+- `mcp/runtime_assets/system_prompts/precision_tool_preference_v1.yaml`
 
-This was tightened further for EX-02.
+Router choice:
 
-EX-02 now only counts as exercised when the repaired route is actually used:
+- `semantic_with_descriptions`
 
-- `selected_tool == get_customer_profile`
-- `routing_trace.matched_keyword == risk`
+This is deliberate and correct.
+`semantic_v1` does not pass tool descriptions into the LLM tool-choice call, so the exercise would be invalid if it used that router.
 
-This means:
+### EX-04 redesign that happened today
 
-- `Show me the risk situation for CUS001` counts
-- `Show me the risk profile for CUS001` does not
-- nonsense does not
+The original two-customer comparison premise was invalid for the current model/tool surface.
 
-These criteria are declared in:
+Observed failure of original premise:
 
-- `java/data/exercises/ex-002-system-is-blind/exercise.yaml`
+- prompt variants containing two customer IDs consistently selected:
+  - `compare_customers`
+- even when the ambiguous description pack was weakened
+- the model keyed strongly on the two-customer shape, so the intended misroute did not happen
 
-And are propagated through:
+Because of that, EX-04 was redesigned around a single-customer ambiguity:
 
-- Java workflow config models
-- live overlay payload
-- Python confirmation logic
+- ambiguous pair is now:
+  - `get_customer_profile_and_alerts`
+  - `get_full_picture`
 
-Current confirmation files:
+New teaching point:
 
-- `.workshop/system_is_blind_complete.json`
-- `.workshop/give_it_a_brain_complete.json`
+- ambiguous descriptions make the model choose the narrower profile+alerts tool
+- corrected descriptions should push it to `get_full_picture` when the prompt implies escalation or full review
 
-## Open vs Challenge Mode
+Current EX-04 confirmation gate:
 
-### Runtime profile
+- `selected_tool: get_full_picture`
 
-Java still defaults to `open` unless `WORKSHOP_PROFILE=challenge` is explicitly set.
+### Current EX-04 pinned prompt
 
-The selector is here:
-
-- `java/src/main/java/com/hackathon/banking/workshop/config/WorkshopRuntimeProfile.java`
-
-And `workflow-open.yaml` is still:
-
-- `mode: open`
-
-### Important fix
-
-Earlier in the refactor, open mode still behaved like challenge mode for stage locking because unlock logic did not branch by mode.
-
-That is now fixed.
-
-Current behavior:
-
-- `open`
-  - all stages unlock immediately
-- `challenge`
-  - `unlock_after` is respected
-
-Implemented in:
-
-- `java/src/main/java/com/hackathon/banking/workshop/progress/ProgressRepository.java`
-
-Specifically:
-
-- `initialStageState(...)`
-- `resetLaterStageState(...)`
-
-Important operational note:
-
-- existing rows in `progress-open.db` are not magically rewritten
-- after this change, you must reset progress or delete `progress-open.db` to see the corrected open-mode visibility cleanly
-
-## Runtime / Logging Improvements
-
-### Python trace output
-
-The Streamlit-side runtime now emits a coherent per-request trace block to console/logs, bounded by:
+Base-state validation prompt to test tomorrow:
 
 ```text
-==============================================
-...
-==============================================
+I need to decide whether CUS017 should be escalated. Give me what I need to review first.
 ```
 
-It includes:
+Out-of-distribution follow-up prompt after the correct fix:
 
-- request phase
-- routing phase
-- execution phase
-- response phase
-- result phase
-- `py_file` for each step
-- full Java HTTP URL for banking calls
-- LLM call metadata when LLM routing/answering is active
+```text
+Full risk review of CUS017 before I escalate it.
+```
 
-Key files:
+### What still needs validation
 
-- `mcp/app/trace.py`
-- `mcp/app/agent/state.py`
-- `mcp/app/agent/graph.py`
-- `mcp/app/agent/nodes/tool_decision.py`
-- `mcp/app/agent/nodes/tool_execution.py`
-- `mcp/app/agent/nodes/response_formatter.py`
+EX-04 is structurally implemented but NOT production-ready yet.
 
-### Logging fix
+It still needs live model validation.
 
-Windows startup log rollover crash was fixed by removing forced eager rollover from:
+Specifically, base `ambiguous_v1` must be tested to see whether it misroutes the pinned prompt to the narrower tool:
 
-- `mcp/app/logging_config.py`
+- desired wrong base selection:
+  - `get_customer_profile_and_alerts`
+- desired correct post-fix selection:
+  - `get_full_picture`
 
-## Known Current Behavior
+Tomorrow’s first task is to validate EX-04 base state with the pinned prompt above and capture:
 
-### EX-02
+1. `selected_tool`
+2. `tool_reasoning`
+3. whether the answer is truly full-evidence review or just profile + alerts
 
-Expected base state:
+If base still chooses `get_full_picture`, EX-04 needs another redesign/tightening before release.
 
-- `router: deterministic`
-- `exercise_id: ex-system-is-blind`
+## Open Items Not Yet Actioned
 
-Expected tests:
+### AdminPageResource.java — HTML still inline
 
-- `Show me the risk profile for CUS001`
-  - succeeds
-- `Show me the risk situation for CUS001`
-  - fails with fallback in base state
-- after correct apply
-  - `Show me the risk situation for CUS001` succeeds
-  - `How exposed are we with CUS001?` still fails
+`java/src/main/java/com/hackathon/banking/resource/AdminPageResource.java`
+returns a full HTML page (including inline CSS and ~140 lines of JavaScript)
+as a Java text block.
 
-### EX-03
+Fix: move to `src/main/resources/META-INF/resources/admin.html`.
+Quarkus serves that directory as static assets automatically.
+The `/admin` endpoint can then redirect or read from classpath.
 
-Expected base state after stage transition:
+This is isolated, carries no risk to workshop flow, and was not prioritised
+this session. Still needs doing.
 
-- `router: keyword_extended`
-- `exercise_id: ex-give-it-a-brain`
+### EX-03 confirmation criteria — still unresolved
 
-Correct apply should move runtime toward:
+Currently any real non-fallback run satisfies EX-03 completion.
+The open question from the previous session: should EX-03 add a specific
+`selected_tool` gate (e.g. requiring the LLM to actually pick a banking tool)
+or a `matched_keyword` gate?
 
-- `router: semantic_v1`
-- LLM overlay set for Cortex/Gemini
+No decision was made this session. Carry forward.
 
-Note:
+## Known Good Compile State
 
-- real LLM success still depends on valid workshop URL/key placeholders being replaced in live config/env inputs as instructed by the exercise
+Java compile passed after this session’s changes:
 
-## Reset Procedure
+```powershell
+C:\Users\upadh\git\hackathon\java\tools\apache-maven-3.9.8\bin\mvn.cmd -q -DskipTests compile
+```
+
+This compile passed after:
+
+- EX-03 profile parameterization
+- observation check visibility fix
+- EX-04 initial implementation
+- EX-04 redesign to single-customer ambiguity
+
+## Operational Notes
+
+### Clean reset procedure
 
 For a clean workshop reset:
 
@@ -312,54 +236,55 @@ In `mcp/.workshop`:
 - delete `overlay_config.json`
 - delete `*_complete.json`
 
-Recommended order after cleanup:
+Recommended order:
 
 1. start Java
 2. open `/workshop` once
-3. confirm Java recreated `.workshop/overlay_config.json`
+3. confirm Java recreated `mcp/.workshop/overlay_config.json`
 4. start or restart Streamlit
 
-If testing `open` mode stage visibility after the latest fix, use a fresh `progress-open.db` or `Reset Progress`.
+### LLM profile switching
 
-## Git / Cleanup Notes
+Default workshop behavior:
 
-The following were intentionally cleaned up and should not be restored unless needed:
+- Cortex/Gemini
 
-- temporary extraction files from `mcp/`
-- `mcp/workshop_ui/`
-- old scaffold-copy exercise folders
-- abandoned exercise directories for EX-01 and EX-04
-
-`.gitignore` in `mcp/` includes:
-
-- `.workshop/overlay_config.json`
-
-## Verification Completed
-
-Verified repeatedly during this session:
-
-- Python compile checks via `.venv\Scripts\python.exe -m py_compile ...`
-- Java compile:
+To override EX-03/EX-04 applied overlays to GPT/OpenAI before starting Java:
 
 ```powershell
-C:\Users\upadh\git\hackathon\java\tools\apache-maven-3.9.8\bin\mvn.cmd -q -DskipTests compile
+$env:WORKSHOP_LLM_PROFILE = "gpt"
 ```
 
-Compile passed after:
+To return to default workshop behavior:
 
-- overlay architecture refactor
-- confirmation flow refactor
-- EX-02 route-specific confirmation criteria
-- open-vs-challenge unlock split
+```powershell
+Remove-Item Env:WORKSHOP_LLM_PROFILE -ErrorAction SilentlyContinue
+```
 
-## Recommended Next Steps
+### Streamlit restarts
 
-1. Do a clean reset with fresh `progress-open.db` and `.workshop/overlay_config.json`.
-2. Re-verify `open` mode now shows both stages immediately.
-3. Re-apply EX-02 after restart so the latest confirmation criteria are written into the overlay payload.
-4. Manually retest:
-   - premature `Finish`
-   - nonsense prompt
-   - `risk profile`
-   - `risk situation`
-5. Decide whether EX-03 also needs stricter stage-specific confirmation criteria instead of the current generic “real non-fallback run” rule.
+When runtime asset files under `mcp/runtime_assets/` change:
+
+- restart Streamlit before retesting
+
+Java restart is not always required for asset-file-only changes, but is required when:
+
+- changing Java code
+- changing workflow manifests
+- changing Java exercise YAML and wanting fresh workshop state
+
+## Recommended Next Step Tomorrow
+
+1. Restart Streamlit.
+2. Reach EX-04 base state with no option applied.
+3. Run:
+
+```text
+I need to decide whether CUS017 should be escalated. Give me what I need to review first.
+```
+
+4. Capture:
+   - `selected_tool`
+   - `tool_reasoning`
+   - whether response uses full activity evidence or only profile + alerts
+5. Decide whether `ambiguous_v1` is now good enough or EX-04 needs another redesign.

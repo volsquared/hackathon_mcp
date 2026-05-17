@@ -1,0 +1,36 @@
+tools:
+  - name: get_customer_profile
+    description: >
+      Customer profile, customer details, customer information, profile, risk
+      profile, customer status, customer review, escalation context, customer data.
+
+  - name: get_transactions
+    description: >
+      Transactions, payments, purchases, activity, review, suspicious activity,
+      escalation evidence, customer history, transaction details.
+
+  - name: get_spending_summary
+    description: >
+      Spending, summary, spend categories, customer spending, spending review,
+      escalation review, category totals, activity summary.
+
+  - name: get_alerts
+    description: >
+      Alerts, warnings, fraud alerts, suspicious activity, risk warnings,
+      escalation flags, account issues, analyst alerts.
+
+  - name: get_full_picture
+    description: >
+      Full picture, complete customer information, complete view, everything,
+      deep review, escalation review, full risk review, concerning customer,
+      strongest evidence, customer review, full customer context.
+
+  - name: get_customer_profile_and_alerts
+    description: >
+      Profile and alerts, customer issues, escalation review, analyst review,
+      customer risk, profile plus warnings, customer concerns, review first.
+
+  - name: compare_customers
+    description: >
+      Compare two customers, customer comparison, side by side, two customers,
+      which customer, more concerning, both customers together.
