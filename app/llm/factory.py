@@ -138,6 +138,18 @@ def load_answer_schema(config: AppConfig | None = None) -> str:
     return str(schema)
 
 
+def load_answer_contract(config: AppConfig | None = None) -> str:
+    payload = get_format_payload(config)
+    if not payload:
+        payload = _load_yaml(_prompts_dir() / "format.yaml")
+    if not isinstance(payload, dict):
+        return ""
+    contract = {key: value for key, value in payload.items() if key != "output_schema"}
+    if not contract:
+        return ""
+    return yaml.safe_dump(contract, sort_keys=False).strip()
+
+
 def _normalize_tool_choice(choice: ToolChoiceSchema, available_tools: list[str]) -> ToolChoiceResult:
     tool_name = choice.tool_name
     if tool_name and tool_name not in available_tools:
@@ -243,10 +255,15 @@ class LangChainLLMClient:
                     (
                         "Write a concise banking answer grounded only in the supplied tool result.\n"
                         "Do not invent facts. If the tool result is empty, say so plainly.\n"
+                        "Treat the answer format contract as an instruction set, not as documentation.\n"
+                        "If the contract defines global guidance or tool-specific requirements for the selected tool, follow them exactly.\n"
+                        "If the contract defines required sections for the selected tool, include each required section explicitly whenever the corresponding evidence exists in the tool result.\n"
+                        "If the contract defines evidence-preservation or compression rules for the selected tool, follow them exactly.\n"
                         "If the user explicitly asks for reasoning, rationale, explanation, or why, "
                         "also return a short rationale of 1-3 sentences grounded in the tool result.\n"
                         "Do not reveal hidden chain-of-thought. Keep the rationale brief and evidence-based.\n"
                         "Desired response shape reference: {answer_schema}\n"
+                        "Answer format contract: {answer_contract}\n"
                         "User request: {user_input}\n"
                         "Selected tool: {tool_name}\n"
                         "Tool result: {tool_result}"
@@ -259,6 +276,7 @@ class LangChainLLMClient:
             prompt.invoke(
                 {
                     "answer_schema": load_answer_schema(),
+                    "answer_contract": load_answer_contract(),
                     "user_input": user_input,
                     "tool_name": tool_name,
                     "tool_result": repr(tool_result),

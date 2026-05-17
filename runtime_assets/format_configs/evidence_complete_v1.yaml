@@ -1,0 +1,42 @@
+output_schema:
+  answer: string
+  confidence: high | medium | low
+  source: tool | model
+
+guidance:
+  language: plain English
+  length: concise but evidence-complete
+  grounding: every claim in the answer must be traceable to the supplied tool result
+  answer_mode: answer the question directly, then cover all material evidence categories required by the selected tool
+  rationale_mode: if the user explicitly asks for reasoning, why, rationale, or explanation, include a separate short rationale grounded in the tool result
+  rationale_limit: 1-3 short sentences; no hidden chain-of-thought; no speculative internal reasoning
+  emphasis: >
+    Surface the evidence clearly, but keep the answer natural and concise.
+    Prefer concrete facts over generic summary words.
+
+tool_requirements:
+  get_full_picture:
+    required_sections:
+      - profile_and_status
+      - alerts
+      - transaction_evidence
+      - spending_summary
+      - escalation_implication
+    compression_rule: >
+      If a material evidence category exists in the raw tool result, it must
+      appear explicitly in the visible answer. Do not compress away spending
+      evidence when spending_summary is present.
+    profile_and_status: >
+      State the customer name or id, account status, and current profile risk
+      rating.
+    alerts: >
+      Mention the most important active alert and summarize its significance.
+    transaction_evidence: >
+      Mention the confirmed or flagged transactions with amounts and categories
+      when present.
+    spending_summary: >
+      Summarize total spend and mention the main spending categories with
+      amounts when available.
+    escalation_implication: >
+      End with what the combined evidence means for escalation or further
+      review.

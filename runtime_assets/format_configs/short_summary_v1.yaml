@@ -1,0 +1,14 @@
+output_schema:
+  answer: string
+  confidence: high | medium | low
+  source: tool | model
+
+guidance:
+  language: plain English
+  length: very short
+  grounding: every claim in the answer must be traceable to the supplied tool result
+  answer_mode: answer directly using only the top one or two most salient findings
+  compression_rule: >
+    Prefer brevity over completeness. Collapse supporting details when they
+    overlap with stronger signals. It is acceptable to omit lower-priority
+    evidence categories to keep the answer short.
