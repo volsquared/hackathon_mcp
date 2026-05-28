@@ -1,0 +1,79 @@
+tools:
+  - name: get_customer_profile
+    description: >
+      Retrieve static customer data such as name, segment, onboarding status,
+      KYC status, account balance, and risk tier.
+    use_for:
+      - Single-customer questions about profile or status fields.
+      - Static customer lookups that do not require alert or activity evidence.
+    do_not_use_for:
+      - Escalation or review decisions that need recent evidence.
+      - Questions requiring alerts, transaction history, or spending patterns.
+
+  - name: get_transactions
+    description: >
+      Retrieve raw recent transaction activity for one customer, including
+      payments, purchases, and timestamps.
+    use_for:
+      - Single-customer questions specifically about recent activity or suspicious transactions.
+      - Requests that need raw transaction evidence rather than a summary.
+    do_not_use_for:
+      - Profile and alert review by itself.
+      - Full escalation decisions that need profile, alerts, and spending together.
+
+  - name: get_spending_summary
+    description: >
+      Retrieve a grouped spending summary for one customer, usually by category.
+    use_for:
+      - Single-customer questions about spending patterns or category totals.
+    do_not_use_for:
+      - Alert review by itself.
+      - Full escalation decisions requiring profile, alerts, and raw activity context.
+
+  - name: get_alerts
+    description: >
+      Retrieve alerts, fraud flags, suspicious activity warnings, and risk
+      notices for one customer.
+    use_for:
+      - Single-customer alert or warning questions.
+    do_not_use_for:
+      - Escalation decisions that need supporting transaction or spending evidence.
+      - Static profile-only questions.
+
+  - name: get_full_picture
+    description: >
+      Retrieve the complete single-customer evidence package by combining
+      profile, alerts, transactions, and spending summary.
+    use_for:
+      - Full risk reviews for one customer.
+      - Deciding whether a customer should be escalated or reviewed in depth.
+      - Questions asking for everything needed to review one customer.
+      - Credit-decision context questions when the user wants the full evidence picture first.
+    do_not_use_for:
+      - Narrow profile-plus-alert lookups when transaction and spending evidence is not needed.
+      - Two-customer comparisons.
+
+  - name: get_customer_profile_and_alerts
+    description: >
+      Retrieve one customer's profile together with alerts when the question is
+      limited to profile context plus warning signals.
+    use_for:
+      - Single-customer questions about profile details and current alerts.
+      - Narrow review prompts that do not require transaction or spending evidence.
+    do_not_use_for:
+      - Escalation decisions, full risk reviews, or "everything I need" prompts.
+      - Questions requiring transactions or spending patterns.
+
+  - name: compare_customers
+    description: >
+      Retrieve evidence for exactly two named customers so the response can
+      compare, rank, or choose between them.
+    use_for:
+      - Prompts asking which of two customers is riskier or more concerning.
+    do_not_use_for:
+      - Single-customer questions.
+
+notes:
+  - No credit scoring tool exists in this system.
+  - No affordability assessment tool exists in this system.
+  - No income verification or credit-limit recommendation tool exists in this system.

@@ -1,5 +1,5 @@
-import re
 import logging
+import re
 from typing import Any
 
 from app.agent.state import AgentState
@@ -10,6 +10,124 @@ from app.models import AgentResponse
 from app.trace import add_trace_step
 
 logger = logging.getLogger(__name__)
+
+_CREDIT_INTENT_PATTERN = re.compile(
+    r"\b("
+    r"credit|lending|underwrit|affordability|creditworthiness|approve|approval|"
+    r"credit line|credit-line|credit limit|limit decision|lending decision"
+    r")\b",
+    re.IGNORECASE,
+)
+_CREDIT_REFUSAL_SENTENCE = "I cannot make credit determinations from this system's data."
+_CREDIT_MISSING_DATA_SENTENCE = (
+    "This system does not contain the affordability, income, credit scoring model, "
+    "repayment history, or underwriting policy inputs required for a credit decision."
+)
+_CREDIT_ROUTE_SENTENCE = (
+    "Please route this case to the appropriate credit specialist or underwriting process "
+    "for any lending decision."
+)
+
+
+def _format_money(value: Any, *, currency_symbol: str = "GBP ") -> str | None:
+    if not isinstance(value, (int, float)):
+        return None
+    if float(value).is_integer():
+        return f"{currency_symbol}{int(value):,}"
+    return f"{currency_symbol}{value:,.2f}"
+
+
+def _is_credit_framed_request(user_input: str) -> bool:
+    return bool(_CREDIT_INTENT_PATTERN.search(user_input))
+
+
+def _should_render_credit_boundary(state: AgentState, config: Any) -> bool:
+    return (
+        state.selected_tool == "get_full_picture"
+        and isinstance(state.raw_result, dict)
+        and config.overlay.format == "credit_boundary_v1"
+        and _is_credit_framed_request(state.user_input)
+    )
+
+
+def _build_credit_boundary_summary(result: dict[str, Any]) -> str:
+    profile = result.get("customer_profile", {})
+    alerts = result.get("alerts", [])
+    spending_summary = result.get("spending_summary", {})
+
+    if not isinstance(profile, dict):
+        profile = {}
+    if not isinstance(alerts, list):
+        alerts = []
+    if not isinstance(spending_summary, dict):
+        spending_summary = {}
+
+    customer_name = profile.get("fullName") or "The customer"
+    customer_id = profile.get("customerId")
+    risk = str(profile.get("riskRating") or "unknown").lower()
+    status = str(profile.get("status") or "unknown").lower()
+    balance_text = _format_money(profile.get("accountBalance"))
+
+    subject = f"{customer_name} ({customer_id})" if customer_id else customer_name
+    first_sentence = f"{subject} has a {status} account with a {risk} risk rating"
+    if balance_text:
+        first_sentence += f" and a balance of {balance_text}"
+    first_sentence += "."
+
+    if alerts:
+        alert_sentence = f"There are {len(alerts)} active alerts in the retrieved evidence."
+    else:
+        alert_sentence = "There are no active alerts in the retrieved evidence."
+
+    total_spend_text = _format_money(spending_summary.get("totalSpend"))
+    breakdown = spending_summary.get("breakdown", [])
+    breakdown_parts: list[str] = []
+    if isinstance(breakdown, list):
+        for item in breakdown[:3]:
+            if not isinstance(item, dict):
+                continue
+            label = item.get("group") or item.get("groupValue") or item.get("category")
+            amount_text = _format_money(item.get("totalAmount"))
+            if label and amount_text:
+                breakdown_parts.append(f"{str(label).lower()} ({amount_text})")
+
+    if total_spend_text and breakdown_parts:
+        if len(breakdown_parts) == 1:
+            breakdown_text = breakdown_parts[0]
+        elif len(breakdown_parts) == 2:
+            breakdown_text = f"{breakdown_parts[0]} and {breakdown_parts[1]}"
+        else:
+            breakdown_text = ", ".join(breakdown_parts[:-1]) + f", and {breakdown_parts[-1]}"
+        spend_sentence = f"Recent confirmed spend totals {total_spend_text}, mainly in {breakdown_text}."
+    elif total_spend_text:
+        spend_sentence = f"Recent confirmed spend totals {total_spend_text}."
+    else:
+        spend_sentence = "The retrieved evidence includes recent transactions and spending activity."
+
+    return "\n\n".join(
+        [
+            "**What The Data Shows**",
+            " ".join([first_sentence, alert_sentence, spend_sentence]),
+            "**Credit Decision Boundary**",
+            "\n".join(
+                [
+                    _CREDIT_MISSING_DATA_SENTENCE,
+                    _CREDIT_REFUSAL_SENTENCE,
+                    _CREDIT_ROUTE_SENTENCE,
+                ]
+            ),
+        ]
+    )
+
+
+def _render_credit_boundary_response(state: AgentState) -> AgentResponse:
+    result = state.raw_result if isinstance(state.raw_result, dict) else {}
+    return AgentResponse(
+        answer=_build_credit_boundary_summary(result),
+        confidence="high",
+        source="tool",
+        data_points=[result],
+    )
 
 
 def _format_customer(result: dict[str, Any]) -> AgentResponse:
@@ -126,7 +244,13 @@ def _format_runtime_diagnostic(result: dict[str, Any]) -> AgentResponse:
 
 def format_response(state: AgentState) -> AgentResponse:
     if isinstance(state.raw_result, dict) and "error" in state.raw_result:
-        add_trace_step(state, "response", "Formatting error response", py_file="app/agent/nodes/response_formatter.py", error=state.raw_result.get("error"))
+        add_trace_step(
+            state,
+            "response",
+            "Formatting error response",
+            py_file="app/agent/nodes/response_formatter.py",
+            error=state.raw_result.get("error"),
+        )
         return AgentResponse(
             answer=state.raw_result["error"],
             confidence="low",
@@ -143,8 +267,38 @@ def format_response(state: AgentState) -> AgentResponse:
 
     runtime = build_llm_from_env()
     config = load_app_config()
+    if _should_render_credit_boundary(state, config):
+        add_trace_step(
+            state,
+            "response",
+            "Rendering deterministic credit boundary response",
+            py_file="app/agent/nodes/response_formatter.py",
+            selected_tool=state.selected_tool,
+            overlay_format=config.overlay.format,
+            overlay_option=config.overlay.option_applied,
+        )
+        response = _render_credit_boundary_response(state)
+        response.selected_tool = state.selected_tool
+        response.tool_input = state.tool_input
+        response.tool_reasoning = state.tool_reasoning
+        response.fallback_message = state.fallback_message
+        response.routing_trace = state.routing_trace
+        response.llm_routing_error = state.llm_routing_error
+        response.llm_answer_error = state.llm_answer_error
+        return response
+
     if runtime.is_ready and runtime.client and state.selected_tool and state.raw_result is not None:
-        add_trace_step(state, "response", "Attempting LLM answer generation", py_file="app/agent/nodes/response_formatter.py", mode=runtime.mode, selected_tool=state.selected_tool, llm_provider=runtime.provider, llm_model=runtime.model, llm_api_base=getattr(runtime.client, "api_base", None))
+        add_trace_step(
+            state,
+            "response",
+            "Attempting LLM answer generation",
+            py_file="app/agent/nodes/response_formatter.py",
+            mode=runtime.mode,
+            selected_tool=state.selected_tool,
+            llm_provider=runtime.provider,
+            llm_model=runtime.model,
+            llm_api_base=getattr(runtime.client, "api_base", None),
+        )
         try:
             generated = runtime.client.generate_answer(
                 user_input=state.user_input,
@@ -192,24 +346,60 @@ def format_response(state: AgentState) -> AgentResponse:
         add_trace_step(state, "response", "Formatting runtime diagnostic", py_file="app/agent/nodes/response_formatter.py")
         response = _format_runtime_diagnostic(state.raw_result)
     elif state.selected_tool == "get_customer_profile" and isinstance(state.raw_result, dict):
-        add_trace_step(state, "response", "Formatting tool response", py_file="app/agent/nodes/response_formatter.py", formatter="_format_customer")
+        add_trace_step(
+            state,
+            "response",
+            "Formatting tool response",
+            py_file="app/agent/nodes/response_formatter.py",
+            formatter="_format_customer",
+        )
         response = _format_customer(state.raw_result)
     elif state.selected_tool == "get_customer_profile_and_alerts" and isinstance(state.raw_result, dict):
-        add_trace_step(state, "response", "Formatting tool response", py_file="app/agent/nodes/response_formatter.py", formatter="_format_customer_profile_and_alerts")
+        add_trace_step(
+            state,
+            "response",
+            "Formatting tool response",
+            py_file="app/agent/nodes/response_formatter.py",
+            formatter="_format_customer_profile_and_alerts",
+        )
         response = _format_customer_profile_and_alerts(state.raw_result)
     elif state.selected_tool == "get_transactions" and isinstance(state.raw_result, list):
-        add_trace_step(state, "response", "Formatting tool response", py_file="app/agent/nodes/response_formatter.py", formatter="_format_transactions")
+        add_trace_step(
+            state,
+            "response",
+            "Formatting tool response",
+            py_file="app/agent/nodes/response_formatter.py",
+            formatter="_format_transactions",
+        )
         response = _format_transactions(state.raw_result)
     elif state.selected_tool == "get_spending_summary" and isinstance(state.raw_result, dict):
-        add_trace_step(state, "response", "Formatting tool response", py_file="app/agent/nodes/response_formatter.py", formatter="_format_spending_summary")
+        add_trace_step(
+            state,
+            "response",
+            "Formatting tool response",
+            py_file="app/agent/nodes/response_formatter.py",
+            formatter="_format_spending_summary",
+        )
         response = _format_spending_summary(state.raw_result)
     elif state.selected_tool == "get_alerts" and isinstance(state.raw_result, list):
-        add_trace_step(state, "response", "Formatting tool response", py_file="app/agent/nodes/response_formatter.py", formatter="_format_alerts")
+        add_trace_step(
+            state,
+            "response",
+            "Formatting tool response",
+            py_file="app/agent/nodes/response_formatter.py",
+            formatter="_format_alerts",
+        )
         response = _format_alerts(state.raw_result)
     else:
         customer_ids = re.findall(r"\bCUS\d{3}\b", state.user_input.upper())
         if len(customer_ids) > 1:
-            add_trace_step(state, "response", "Formatting fallback response", py_file="app/agent/nodes/response_formatter.py", branch="multi_customer_unsupported")
+            add_trace_step(
+                state,
+                "response",
+                "Formatting fallback response",
+                py_file="app/agent/nodes/response_formatter.py",
+                branch="multi_customer_unsupported",
+            )
             response = AgentResponse(
                 answer=(
                     "This scaffold does not support multi-customer comparisons yet. "
@@ -220,7 +410,13 @@ def format_response(state: AgentState) -> AgentResponse:
                 data_points=[],
             )
         else:
-            add_trace_step(state, "response", "Formatting fallback response", py_file="app/agent/nodes/response_formatter.py", branch="gentle")
+            add_trace_step(
+                state,
+                "response",
+                "Formatting fallback response",
+                py_file="app/agent/nodes/response_formatter.py",
+                branch="gentle",
+            )
             response = AgentResponse(
                 answer=state.fallback_message or (
                     "I could not map that request to a banking tool yet. Try asking about a "

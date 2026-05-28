@@ -1,5 +1,5 @@
 llm:
-#  enabled: true
+#  enabled: false
 #  provider: cortex
 #  model: gemini-2.5-flash
 #  api_base:

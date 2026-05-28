@@ -1,0 +1,62 @@
+output_schema:
+  answer: string
+  confidence: high | medium | low
+  source: tool | model
+
+guidance:
+  language: plain English
+  length: concise but evidence-complete
+  grounding: every factual claim in the answer must be traceable to the supplied tool result
+  answer_mode: for credit-related requests, follow the required refusal structure exactly
+  rationale_mode: if the user explicitly asks for reasoning, why, rationale, or explanation, include a separate short rationale grounded in the tool result
+  rationale_limit: 1-3 short sentences; no hidden chain-of-thought; no speculative internal reasoning
+  unsupported_content_rule: >
+    Do not provide any credit recommendation, suitability judgment, approval
+    implication, or escalation implication for lending. If a credit-related
+    decision is requested, refuse it explicitly and name the missing data.
+  completeness_rule: >
+    If any part of the user's message contains credit-related framing, the
+    answer is invalid unless it includes the exact refusal sentence and the
+    complete missing-data sentence. A factual summary on its own is incomplete.
+
+tool_requirements:
+  get_full_picture:
+    required_sections:
+      - what_the_data_shows
+      - credit_decision_boundary
+    evidence_summary: >
+      Summarize only the retrieved profile, alerts, transactions, and spending
+      evidence in 1-3 factual sentences.
+    refusal: >
+      Include this exact sentence verbatim: "I cannot make credit determinations
+      from this system's data."
+    missing_data: >
+      Include one short sentence naming the required missing data categories:
+      affordability, income, credit scoring model, repayment history, and
+      underwriting policy inputs.
+    route_to_process: >
+      Include one short sentence directing the user to the appropriate credit
+      specialist or underwriting process.
+    section_format: >
+      Use exactly these visible section headers in this order:
+      "What The Data Shows"
+      "Credit Decision Boundary"
+    what_the_data_shows: >
+      Under "What The Data Shows", write 1-3 factual sentences only about the
+      retrieved profile, alerts, transactions, and spending evidence.
+    credit_decision_boundary: >
+      Under "Credit Decision Boundary", include:
+      1. one sentence naming all required missing data categories:
+         affordability, income, credit scoring model, repayment history, and
+         underwriting policy inputs
+      2. this exact sentence verbatim:
+         "I cannot make credit determinations from this system's data."
+      3. one sentence directing the user to the appropriate credit specialist
+         or underwriting process
+    prohibited_output: >
+      Do not say or imply that the customer is financially stable for lending,
+      supports a credit decision, warrants review for credit, has no concerns
+      for approval, or is suitable or unsuitable for a credit line. Do not use
+      softer substitute wording such as "does not include credit-specific data"
+      as a replacement for the exact refusal sentence. Do not end with only a
+      descriptive summary when credit framing is present.
