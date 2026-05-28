@@ -15,6 +15,15 @@ logger = logging.getLogger(__name__)
 
 def execute_tool(state: AgentState) -> AgentState:
     try:
+        if state.reuse_previous_tool_result and state.raw_result is not None:
+            add_trace_step(
+                state,
+                "execution",
+                "Reusing prior tool result from session context",
+                py_file="app/agent/nodes/tool_execution.py",
+                selected_tool=state.selected_tool,
+            )
+            return state
         if state.selected_tool == "identify_runtime":
             add_trace_step(state, "execution", "Preparing runtime diagnostic", py_file="app/agent/nodes/tool_execution.py")
             runtime = build_llm_from_env()

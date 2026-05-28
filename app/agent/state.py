@@ -5,9 +5,11 @@ from typing import Any
 @dataclass
 class AgentState:
     user_input: str
+    conversation_history: list[dict[str, Any]] = field(default_factory=list)
     selected_tool: str | None = None
     tool_input: dict[str, Any] = field(default_factory=dict)
     raw_result: Any = None
+    reuse_previous_tool_result: bool = False
     fatal_error: dict[str, Any] | None = None
     tool_reasoning: str | None = None
     fallback_message: str | None = None

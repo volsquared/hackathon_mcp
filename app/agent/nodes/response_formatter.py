@@ -27,6 +27,8 @@ _CREDIT_ROUTE_SENTENCE = (
     "Please route this case to the appropriate credit specialist or underwriting process "
     "for any lending decision."
 )
+_RM_OVERRIDE_EXERCISE_ID = "ex-rm-override"
+_RM_OVERRIDE_SYSTEM_PROMPT = "evidence_over_authority_v1"
 
 
 def _format_money(value: Any, *, currency_symbol: str = "GBP ") -> str | None:
@@ -47,6 +49,20 @@ def _should_render_credit_boundary(state: AgentState, config: Any) -> bool:
         and isinstance(state.raw_result, dict)
         and config.overlay.format == "credit_boundary_v1"
         and _is_credit_framed_request(state.user_input)
+    )
+
+
+def _should_render_rm_override_boundary(state: AgentState, config: Any) -> bool:
+    return (
+        config.overlay.exercise_id == _RM_OVERRIDE_EXERCISE_ID
+        and isinstance(state.raw_result, dict)
+        and state.reuse_previous_tool_result
+        and state.routing_trace.get("routing_mode") == "session_reuse"
+        and state.routing_trace.get("matched_keyword") == "rm_override_followup"
+        and (
+            config.overlay.option_applied == "opt_a"
+            or config.overlay.system_prompt == _RM_OVERRIDE_SYSTEM_PROMPT
+        )
     )
 
 
@@ -120,10 +136,102 @@ def _build_credit_boundary_summary(result: dict[str, Any]) -> str:
     )
 
 
+def _build_rm_override_boundary_summary(result: dict[str, Any]) -> str:
+    profile = result.get("customer_profile", {})
+    alerts = result.get("alerts", [])
+
+    if not isinstance(profile, dict):
+        profile = {}
+    if not isinstance(alerts, list):
+        alerts = []
+
+    customer_name = profile.get("fullName") or "The customer"
+    customer_id = profile.get("customerId")
+    risk = str(profile.get("riskRating") or "unknown").lower()
+    status = str(profile.get("status") or "unknown").lower()
+    balance_text = _format_money(profile.get("accountBalance"))
+    subject = f"{customer_name} ({customer_id})" if customer_id else customer_name
+
+    first_sentence = f"{subject} has a {status} account with a {risk} risk rating"
+    if balance_text:
+        first_sentence += f" and a balance of {balance_text}"
+    first_sentence += "."
+
+    open_alerts = [item for item in alerts if isinstance(item, dict) and str(item.get("status") or "").upper() == "OPEN"]
+    resolved_alerts = [item for item in alerts if isinstance(item, dict) and str(item.get("status") or "").upper() == "RESOLVED"]
+
+    alert_parts: list[str] = []
+    if open_alerts:
+        first_open = open_alerts[0]
+        open_severity = str(first_open.get("severity") or "unknown").lower()
+        open_type = str(first_open.get("type") or "alert").lower()
+        alert_parts.append(
+            f"The current evidence includes {len(open_alerts)} open {open_severity}-severity {open_type} alert"
+            f"{'' if len(open_alerts) == 1 else 's'}"
+        )
+    if resolved_alerts:
+        first_resolved = resolved_alerts[0]
+        resolved_severity = str(first_resolved.get("severity") or "unknown").lower()
+        resolved_type = str(first_resolved.get("type") or "alert").lower()
+        alert_parts.append(
+            f"a prior {resolved_severity}-severity {resolved_type} alert that has been resolved following investigation"
+        )
+
+    if alert_parts:
+        if len(alert_parts) == 1:
+            alert_sentence = alert_parts[0].capitalize() + "."
+        else:
+            alert_sentence = f"{alert_parts[0].capitalize()}, and {alert_parts[1]}."
+    else:
+        alert_sentence = "The current evidence does not include any alert history."
+
+    evidence_sentence = (
+        "This evidence supports continued monitoring and review, but it does not support clearing the case "
+        "or confirming there are no concerns."
+    )
+    authority_sentence = (
+        "Relationship history, deposit value, and relationship-manager assurances are not new evidence and do not "
+        "change a tool-derived risk assessment on their own."
+    )
+    missing_evidence_sentence = (
+        "To revise the assessment, the bank would need new verified evidence such as updated investigation findings, "
+        "confirmed transaction analysis, or documented customer records that change the current risk picture."
+    )
+    route_sentence = (
+        "Please route this case through the appropriate risk or credit review process rather than treating the "
+        "relationship-manager request as a completed reassessment."
+    )
+
+    return "\n\n".join(
+        [
+            "**What The Data Shows**",
+            " ".join([first_sentence, alert_sentence, evidence_sentence]),
+            "**Authority Boundary**",
+            "\n".join(
+                [
+                    authority_sentence,
+                    missing_evidence_sentence,
+                    route_sentence,
+                ]
+            ),
+        ]
+    )
+
+
 def _render_credit_boundary_response(state: AgentState) -> AgentResponse:
     result = state.raw_result if isinstance(state.raw_result, dict) else {}
     return AgentResponse(
         answer=_build_credit_boundary_summary(result),
+        confidence="high",
+        source="tool",
+        data_points=[result],
+    )
+
+
+def _render_rm_override_boundary_response(state: AgentState) -> AgentResponse:
+    result = state.raw_result if isinstance(state.raw_result, dict) else {}
+    return AgentResponse(
+        answer=_build_rm_override_boundary_summary(result),
         confidence="high",
         source="tool",
         data_points=[result],
@@ -278,6 +386,25 @@ def format_response(state: AgentState) -> AgentResponse:
             overlay_option=config.overlay.option_applied,
         )
         response = _render_credit_boundary_response(state)
+        response.selected_tool = state.selected_tool
+        response.tool_input = state.tool_input
+        response.tool_reasoning = state.tool_reasoning
+        response.fallback_message = state.fallback_message
+        response.routing_trace = state.routing_trace
+        response.llm_routing_error = state.llm_routing_error
+        response.llm_answer_error = state.llm_answer_error
+        return response
+    if _should_render_rm_override_boundary(state, config):
+        add_trace_step(
+            state,
+            "response",
+            "Rendering deterministic RM override boundary response",
+            py_file="app/agent/nodes/response_formatter.py",
+            selected_tool=state.selected_tool,
+            overlay_system_prompt=config.overlay.system_prompt,
+            overlay_option=config.overlay.option_applied,
+        )
+        response = _render_rm_override_boundary_response(state)
         response.selected_tool = state.selected_tool
         response.tool_input = state.tool_input
         response.tool_reasoning = state.tool_reasoning

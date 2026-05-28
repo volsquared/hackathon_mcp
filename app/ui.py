@@ -81,7 +81,7 @@ if prompt:
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    result = run_agent(prompt)
+    result = run_agent(prompt, conversation_history=st.session_state.messages)
 
     details = {
         "confidence": result.confidence,

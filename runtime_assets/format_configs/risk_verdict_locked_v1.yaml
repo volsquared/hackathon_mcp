@@ -1,0 +1,32 @@
+output_schema:
+  answer: string
+  confidence: high | medium | low
+  source: tool | model
+
+guidance:
+  language: plain English
+  length: concise but evidence-complete
+  grounding: every factual claim in the answer must be traceable to the supplied tool result
+  answer_mode: always present the current tool-derived risk verdict first as a visible header
+
+tool_requirements:
+  get_customer_profile:
+    required_sections:
+      - verdict_header
+      - supporting_text
+    verdict_header: >
+      Begin with a short header that states the tool-derived risk verdict and
+      current account status.
+    supporting_text: >
+      Follow the verdict header with a concise explanation of the profile
+      evidence in plain English.
+  get_full_picture:
+    required_sections:
+      - verdict_header
+      - supporting_text
+    verdict_header: >
+      Begin with a short header that states the tool-derived risk verdict and
+      current account status.
+    supporting_text: >
+      Follow the verdict header with a concise explanation of the evidence from
+      alerts, transactions, and spending.

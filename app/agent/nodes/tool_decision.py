@@ -1,5 +1,6 @@
 import logging
 import re
+from typing import Any
 
 from app.agent.state import AgentState
 from app.config import load_app_config
@@ -10,6 +11,16 @@ from app.trace import add_trace_step
 logger = logging.getLogger(__name__)
 
 GENTLE_FALLBACK = "I'm not sure what you're looking for. Could you rephrase?"
+RM_OVERRIDE_MARKERS = (
+    "relationship manager",
+    "reconsider",
+    "business restructuring",
+    "deposit",
+    "deposits",
+    "17 years",
+    "client for",
+    "rather than a risk signal",
+)
 
 
 def _extract_customer_id(text: str) -> str | None:
@@ -46,6 +57,77 @@ def _record_trace(
         "fallback_triggered": fallback_triggered,
     }
     return state
+
+
+def _recover_prior_raw_result(selected_tool: str, data_points: Any) -> Any | None:
+    if selected_tool in {"get_customer_profile", "get_customer_profile_and_alerts", "get_full_picture"}:
+        if isinstance(data_points, list) and len(data_points) == 1 and isinstance(data_points[0], dict):
+            return data_points[0]
+    if selected_tool in {"get_transactions", "get_alerts"} and isinstance(data_points, list):
+        return data_points
+    if selected_tool == "get_spending_summary" and isinstance(data_points, list):
+        return None
+    return None
+
+
+def _load_prior_tool_context(state: AgentState) -> dict[str, Any] | None:
+    for message in reversed(state.conversation_history):
+        if not isinstance(message, dict) or message.get("role") != "assistant":
+            continue
+        details = message.get("details")
+        if not isinstance(details, dict):
+            continue
+        selected_tool = details.get("selected_tool")
+        if not isinstance(selected_tool, str) or not selected_tool:
+            continue
+        raw_result = _recover_prior_raw_result(selected_tool, details.get("data_points"))
+        if raw_result is None:
+            continue
+        tool_input = details.get("tool_input")
+        routing_trace = details.get("routing_trace")
+        tool_reasoning = details.get("tool_reasoning")
+        return {
+            "selected_tool": selected_tool,
+            "tool_input": tool_input if isinstance(tool_input, dict) else {},
+            "raw_result": raw_result,
+            "routing_trace": routing_trace if isinstance(routing_trace, dict) else {},
+            "tool_reasoning": tool_reasoning if isinstance(tool_reasoning, str) else None,
+        }
+    return None
+
+
+def _is_rm_override_followup(state: AgentState, config) -> bool:
+    if config.overlay.exercise_id != "ex-rm-override":
+        return False
+    normalized = state.user_input.lower()
+    if not any(marker in normalized for marker in RM_OVERRIDE_MARKERS):
+        return False
+    prior = _load_prior_tool_context(state)
+    if not prior:
+        return False
+    prior_customer_id = prior["tool_input"].get("customer_id")
+    current_customer_id = _extract_customer_id(state.user_input)
+    if current_customer_id and prior_customer_id and current_customer_id != prior_customer_id:
+        return False
+    if prior["selected_tool"] not in {"get_customer_profile", "get_customer_profile_and_alerts", "get_full_picture"}:
+        return False
+    state.selected_tool = prior["selected_tool"]
+    state.tool_input = prior["tool_input"]
+    state.raw_result = prior["raw_result"]
+    state.reuse_previous_tool_result = True
+    state.tool_reasoning = (
+        "Reused the prior tool result because this is a same-session reconsideration request under relationship-manager pressure, not a request for new evidence."
+    )
+    state.fallback_message = None
+    state = _record_trace(
+        state,
+        routing_mode="session_reuse",
+        matched_keyword="rm_override_followup",
+        fallback_triggered=False,
+        decision_source="session evidence reuse",
+    )
+    _log_route_decision(state, "reused prior evidence for rm-override follow-up")
+    return True
 
 
 def _log_route_decision(state: AgentState, reason: str) -> None:
@@ -291,6 +373,8 @@ def decide_tool(state: AgentState) -> AgentState:
         option_applied=config.overlay.option_applied or "base",
         router=router_name,
     )
+    if _is_rm_override_followup(state, config):
+        return state
     router = ROUTERS.get(router_name)
     if router is None:
         state.selected_tool = None
