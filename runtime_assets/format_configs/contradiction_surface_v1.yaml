@@ -1,0 +1,31 @@
+output_schema:
+  answer: string
+  confidence: high | medium | low
+  source: tool | model
+
+guidance:
+  language: plain English
+  length: concise but evidence-complete
+  grounding: every claim in the answer must be traceable to the supplied tool result
+  answer_mode: >
+    Surface contradictory signals explicitly and side by side. Do not suppress
+    either signal. Make the contradiction visible, but do not impose an
+    explicit precedence rule unless the tool result itself already resolves it.
+  rationale_mode: if the user explicitly asks for reasoning, why, rationale, or explanation, include a separate short rationale grounded in the tool result
+  rationale_limit: 1-3 short sentences; no hidden chain-of-thought; no speculative internal reasoning
+
+tool_requirements:
+  get_full_picture:
+    required_sections:
+      - profile_signal
+      - transaction_signal
+      - contradiction_statement
+    profile_signal: >
+      State the current profile risk rating and any relevant profile or status
+      field that frames the older signal.
+    transaction_signal: >
+      State the recent flagged or fraud-marked transaction evidence with enough
+      detail to show why it conflicts with the profile signal.
+    contradiction_statement: >
+      State clearly that the profile signal and recent activity point in
+      different directions, without asserting a categorical precedence rule.

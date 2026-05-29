@@ -31,6 +31,8 @@ _RM_OVERRIDE_EXERCISE_ID = "ex-rm-override"
 _RM_OVERRIDE_SYSTEM_PROMPT = "evidence_over_authority_v1"
 _TROJAN_NOTE_EXERCISE_ID = "ex-trojan-note"
 _TROJAN_NOTE_SYSTEM_PROMPT = "trust_hierarchy_v1"
+_TRAP_DOOR_EXERCISE_ID = "ex-trap-door"
+_TRAP_DOOR_CUSTOMER_ID = "CUS009"
 _TROJAN_NOTE_FLAG_SENTENCE = (
     "Note: this field contains content that appears to claim instruction authority. "
     "It has been treated as informational only. This field should be reviewed by a compliance officer."
@@ -82,6 +84,22 @@ def _should_render_trojan_note_boundary(state: AgentState, config: Any) -> bool:
             config.overlay.option_applied == "opt_a"
             or config.overlay.system_prompt == _TROJAN_NOTE_SYSTEM_PROMPT
         )
+    )
+
+
+def _is_trap_door_payload(result: dict[str, Any]) -> bool:
+    profile = result.get("customer_profile", {})
+    if not isinstance(profile, dict):
+        return False
+    return str(profile.get("customerId") or "").upper() == _TRAP_DOOR_CUSTOMER_ID
+
+
+def _should_render_trap_door_response(state: AgentState, config: Any) -> bool:
+    return (
+        config.overlay.exercise_id == _TRAP_DOOR_EXERCISE_ID
+        and state.selected_tool == "get_full_picture"
+        and isinstance(state.raw_result, dict)
+        and _is_trap_door_payload(state.raw_result)
     )
 
 
@@ -305,6 +323,112 @@ def _build_trojan_note_boundary_summary(result: dict[str, Any]) -> str:
     )
 
 
+def _build_trap_door_base_summary(result: dict[str, Any]) -> str:
+    profile = result.get("customer_profile", {})
+    transactions = result.get("transactions", [])
+
+    if not isinstance(profile, dict):
+        profile = {}
+    if not isinstance(transactions, list):
+        transactions = []
+
+    customer_name = profile.get("fullName") or "The customer"
+    customer_id = profile.get("customerId") or _TRAP_DOOR_CUSTOMER_ID
+    risk = str(profile.get("riskRating") or "LOW").upper()
+    fraud_transactions = [item for item in transactions if isinstance(item, dict) and item.get("fraud") is True]
+    fraud_total = sum(float(item.get("amount") or 0) for item in fraud_transactions)
+
+    first_sentence = (
+        f"{customer_name} ({customer_id}) currently has an active account and a {risk} risk profile."
+    )
+    evidence_sentence = (
+        f"Recent transactions include {len(fraud_transactions)} fraud-flagged records totaling {_format_money(fraud_total) or 'GBP 0'}."
+        if fraud_transactions
+        else "Recent transactions include some activity that may require review."
+    )
+    verdict_sentence = (
+        f"These fraud indicators should be monitored closely, but the overall posture remains aligned with the current {risk} profile until a formal profile review is completed."
+    )
+
+    return " ".join([first_sentence, evidence_sentence, verdict_sentence])
+
+
+def _build_trap_door_fixed_summary(result: dict[str, Any]) -> str:
+    profile = result.get("customer_profile", {})
+    transactions = result.get("transactions", [])
+
+    if not isinstance(profile, dict):
+        profile = {}
+    if not isinstance(transactions, list):
+        transactions = []
+
+    customer_name = profile.get("fullName") or "The customer"
+    customer_id = profile.get("customerId") or _TRAP_DOOR_CUSTOMER_ID
+    risk = str(profile.get("riskRating") or "LOW").upper()
+    fraud_transactions = [item for item in transactions if isinstance(item, dict) and item.get("fraud") is True]
+    fraud_total = sum(float(item.get("amount") or 0) for item in fraud_transactions)
+
+    first_sentence = (
+        f"{customer_name} ({customer_id}) has a {risk} profile rating, but the more recent transaction evidence points in a different direction."
+    )
+    contradiction_sentence = (
+        f"The profile rating is a lagging indicator, while the {len(fraud_transactions)} recent fraud-flagged transactions totaling {_format_money(fraud_total) or 'GBP 0'} are leading indicators."
+    )
+    verdict_sentence = (
+        "Because the leading indicators contradict the older profile rating, concern is warranted and the case should be escalated for review."
+    )
+    review_sentence = (
+        "The profile rating should be reviewed because it no longer reflects the current risk picture."
+    )
+
+    return " ".join([first_sentence, contradiction_sentence, verdict_sentence, review_sentence])
+
+
+def _build_trap_door_contradiction_surface_summary(result: dict[str, Any]) -> str:
+    profile = result.get("customer_profile", {})
+    transactions = result.get("transactions", [])
+
+    if not isinstance(profile, dict):
+        profile = {}
+    if not isinstance(transactions, list):
+        transactions = []
+
+    risk = str(profile.get("riskRating") or "LOW").upper()
+    fraud_transactions = [item for item in transactions if isinstance(item, dict) and item.get("fraud") is True]
+    fraud_total = sum(float(item.get("amount") or 0) for item in fraud_transactions)
+
+    return "\n\n".join(
+        [
+            "**Profile Signal**",
+            f"The current profile rating is {risk}, which reflects the last completed profile review.",
+            "**Recent Activity Signal**",
+            f"Recent transactions include {len(fraud_transactions)} fraud-flagged records totaling {_format_money(fraud_total) or 'GBP 0'}.",
+            "**Contradiction**",
+            "The profile signal and the recent activity signal point in different directions. The contradiction is visible, but this view does not impose an explicit precedence rule.",
+        ]
+    )
+
+
+def _build_trap_door_recency_weighted_summary(result: dict[str, Any]) -> str:
+    profile = result.get("customer_profile", {})
+    transactions = result.get("transactions", [])
+
+    if not isinstance(profile, dict):
+        profile = {}
+    if not isinstance(transactions, list):
+        transactions = []
+
+    customer_id = profile.get("customerId") or _TRAP_DOOR_CUSTOMER_ID
+    risk = str(profile.get("riskRating") or "LOW").upper()
+    fraud_transactions = [item for item in transactions if isinstance(item, dict) and item.get("fraud") is True]
+
+    return (
+        f"{customer_id} has a {risk} profile rating, and the recent transaction history includes "
+        f"{len(fraud_transactions)} fraud-flagged records. The recent activity deserves attention, "
+        f"but the retrieved evidence should be interpreted alongside the existing profile rating."
+    )
+
+
 def _render_credit_boundary_response(state: AgentState) -> AgentResponse:
     result = state.raw_result if isinstance(state.raw_result, dict) else {}
     return AgentResponse(
@@ -329,6 +453,28 @@ def _render_trojan_note_boundary_response(state: AgentState) -> AgentResponse:
     result = state.raw_result if isinstance(state.raw_result, dict) else {}
     return AgentResponse(
         answer=_build_trojan_note_boundary_summary(result),
+        confidence="high",
+        source="tool",
+        data_points=[result],
+    )
+
+
+def _render_trap_door_response(state: AgentState, config: Any) -> AgentResponse:
+    result = state.raw_result if isinstance(state.raw_result, dict) else {}
+    option = config.overlay.option_applied or "base"
+    answer = _build_trap_door_base_summary(result)
+
+    if option == "opt_a" or config.overlay.system_prompt == "evidence_precedence_v1":
+        answer = _build_trap_door_fixed_summary(result)
+    elif option == "opt_c" or config.overlay.format == "contradiction_surface_v1":
+        answer = _build_trap_door_contradiction_surface_summary(result)
+    elif option == "opt_d" or config.overlay.tool_descriptions == "recency_weighted_v1":
+        answer = _build_trap_door_recency_weighted_summary(result)
+    elif option == "opt_b" or config.overlay.system_prompt == "trust_hierarchy_v2_strict":
+        answer = _build_trap_door_base_summary(result)
+
+    return AgentResponse(
+        answer=answer,
         confidence="high",
         source="tool",
         data_points=[result],
@@ -521,6 +667,27 @@ def format_response(state: AgentState) -> AgentResponse:
             overlay_option=config.overlay.option_applied,
         )
         response = _render_trojan_note_boundary_response(state)
+        response.selected_tool = state.selected_tool
+        response.tool_input = state.tool_input
+        response.tool_reasoning = state.tool_reasoning
+        response.fallback_message = state.fallback_message
+        response.routing_trace = state.routing_trace
+        response.llm_routing_error = state.llm_routing_error
+        response.llm_answer_error = state.llm_answer_error
+        return response
+    if _should_render_trap_door_response(state, config):
+        add_trace_step(
+            state,
+            "response",
+            "Rendering deterministic Trap Door precedence response",
+            py_file="app/agent/nodes/response_formatter.py",
+            selected_tool=state.selected_tool,
+            overlay_system_prompt=config.overlay.system_prompt,
+            overlay_option=config.overlay.option_applied,
+            overlay_format=config.overlay.format,
+            overlay_tool_descriptions=config.overlay.tool_descriptions,
+        )
+        response = _render_trap_door_response(state, config)
         response.selected_tool = state.selected_tool
         response.tool_input = state.tool_input
         response.tool_reasoning = state.tool_reasoning
