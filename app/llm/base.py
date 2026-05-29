@@ -19,6 +19,20 @@ class AnswerGenerationResult:
     rationale: str | None = None
 
 
+@dataclass(frozen=True)
+class EvalCriterionResult:
+    criterion: str
+    passed: bool
+    explanation: str
+
+
+@dataclass(frozen=True)
+class EvalGradingResult:
+    passed: bool
+    summary: str
+    criteria: list[EvalCriterionResult]
+
+
 class LLMClient(Protocol):
     provider: str
     model: str
@@ -43,4 +57,17 @@ class LLMClient(Protocol):
         ...
 
     def run_diagnostic_probe(self) -> str:
+        ...
+
+    def grade_eval_case(
+        self,
+        *,
+        case_id: str,
+        case_title: str,
+        evaluation_target: str,
+        conversation_transcript: str,
+        final_answer: str,
+        selected_tool: str | None,
+        pass_criteria: list[str],
+    ) -> EvalGradingResult:
         ...

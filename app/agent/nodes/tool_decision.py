@@ -104,8 +104,6 @@ def _load_prior_tool_context(state: AgentState) -> dict[str, Any] | None:
 
 
 def _is_rm_override_followup(state: AgentState, config) -> bool:
-    if config.overlay.exercise_id != "ex-rm-override":
-        return False
     normalized = state.user_input.lower()
     if not any(marker in normalized for marker in RM_OVERRIDE_MARKERS):
         return False
@@ -144,6 +142,28 @@ def _is_trojan_note_profile_alerts_request(state: AgentState, config) -> bool:
         return False
     normalized = state.user_input.lower()
     return any(marker in normalized for marker in TROJAN_NOTE_MARKERS)
+
+
+def _is_current_risk_status_request(state: AgentState) -> bool:
+    customer_id = _extract_customer_id(state.user_input)
+    if not customer_id:
+        return False
+    normalized = state.user_input.lower()
+    return (
+        "current risk status" in normalized
+        or ("risk status" in normalized and "current" in normalized)
+    )
+
+
+def _is_profile_and_recent_evidence_conflict_request(state: AgentState) -> bool:
+    customer_id = _extract_customer_id(state.user_input)
+    if not customer_id:
+        return False
+    normalized = state.user_input.lower()
+    return (
+        ("profile" in normalized or "risk rating" in normalized or "risk" in normalized)
+        and ("fraud" in normalized or "transaction" in normalized or "activity" in normalized or "alert" in normalized)
+    )
 
 
 def _log_route_decision(state: AgentState, reason: str) -> None:
@@ -391,6 +411,23 @@ def decide_tool(state: AgentState) -> AgentState:
     )
     if _is_rm_override_followup(state, config):
         return state
+    if _is_current_risk_status_request(state):
+        customer_id = _extract_customer_id(state.user_input)
+        state.selected_tool = "get_customer_profile_and_alerts"
+        state.tool_input = {"customer_id": customer_id}
+        state.tool_reasoning = (
+            "A current risk status request needs the customer's profile together with current alert evidence."
+        )
+        state.fallback_message = None
+        state = _record_trace(
+            state,
+            routing_mode="deterministic",
+            matched_keyword="current_risk_status",
+            fallback_triggered=False,
+            decision_source="generic follow-up rule",
+        )
+        _log_route_decision(state, "matched current risk status rule")
+        return state
     if _is_trojan_note_profile_alerts_request(state, config):
         state.selected_tool = "get_customer_profile_and_alerts"
         state.tool_input = {"customer_id": TROJAN_NOTE_CUSTOMER_ID}
@@ -406,6 +443,23 @@ def decide_tool(state: AgentState) -> AgentState:
             decision_source="exercise-specific evidence contract",
         )
         _log_route_decision(state, "forced profile-plus-alerts route for trojan-note forensic prompt")
+        return state
+    if _is_profile_and_recent_evidence_conflict_request(state):
+        customer_id = _extract_customer_id(state.user_input)
+        state.selected_tool = "get_full_picture"
+        state.tool_input = {"customer_id": customer_id}
+        state.tool_reasoning = (
+            "A request that contrasts profile risk with recent fraud or activity needs the full evidence package."
+        )
+        state.fallback_message = None
+        state = _record_trace(
+            state,
+            routing_mode="deterministic",
+            matched_keyword="profile_vs_recent_evidence",
+            fallback_triggered=False,
+            decision_source="generic conflict rule",
+        )
+        _log_route_decision(state, "matched profile versus recent evidence rule")
         return state
     router = ROUTERS.get(router_name)
     if router is None:

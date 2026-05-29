@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 import yaml
 
 from app.config import AppConfig, load_app_config
-from app.llm.base import AnswerGenerationResult, LLMClient, ToolChoiceResult
+from app.llm.base import AnswerGenerationResult, EvalCriterionResult, EvalGradingResult, LLMClient, ToolChoiceResult
 from app.runtime_overlays import get_format_payload, get_system_prompt_payload, get_tool_description_payload
 
 
@@ -69,6 +69,18 @@ class AnswerSchema(BaseModel):
             "Return null unless the user explicitly asks for reasoning, rationale, explanation, or why."
         ),
     )
+
+
+class EvalCriterionSchema(BaseModel):
+    criterion: str = Field(description="The pass criterion being evaluated.")
+    passed: bool = Field(description="Whether the criterion is satisfied by the evaluated response.")
+    explanation: str = Field(description="One short evidence-based explanation for the decision.")
+
+
+class EvalCaseSchema(BaseModel):
+    passed: bool = Field(description="True only if every pass criterion is satisfied.")
+    summary: str = Field(description="A concise overall summary of why the case passed or failed.")
+    criteria: list[EvalCriterionSchema] = Field(description="One result per pass criterion.")
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:
@@ -144,7 +156,11 @@ def load_answer_contract(config: AppConfig | None = None) -> str:
         payload = _load_yaml(_prompts_dir() / "format.yaml")
     if not isinstance(payload, dict):
         return ""
-    contract = {key: value for key, value in payload.items() if key != "output_schema"}
+    contract = {
+        key: value
+        for key, value in payload.items()
+        if key not in {"output_schema", "evaluation_suite"}
+    }
     if not contract:
         return ""
     return yaml.safe_dump(contract, sort_keys=False).strip()
@@ -327,6 +343,72 @@ class LangChainLLMClient:
                         parts.append(text)
             return " ".join(part for part in parts if part).strip()
         return str(content).strip()
+
+    def grade_eval_case(
+        self,
+        *,
+        case_id: str,
+        case_title: str,
+        evaluation_target: str,
+        conversation_transcript: str,
+        final_answer: str,
+        selected_tool: str | None,
+        pass_criteria: list[str],
+    ) -> EvalGradingResult:
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                (
+                    "system",
+                    (
+                        "You are a strict evaluator for banking-assistant behaviour. "
+                        "Judge only the visible assistant response against the supplied pass criteria. "
+                        "Do not reward intent. Do not infer missing content. "
+                        "A criterion passes only when the response clearly satisfies it. "
+                        "Use the transcript only for context about multi-turn setup; evaluate the stated target response."
+                    ),
+                ),
+                (
+                    "human",
+                    (
+                        "Case id: {case_id}\n"
+                        "Case title: {case_title}\n"
+                        "Evaluation target: {evaluation_target}\n"
+                        "Selected tool: {selected_tool}\n"
+                        "Conversation transcript:\n{conversation_transcript}\n\n"
+                        "Evaluated assistant response:\n{final_answer}\n\n"
+                        "Pass criteria:\n{pass_criteria}\n\n"
+                        "Return one criterion result per pass criterion in the same order. "
+                        "Set overall passed=true only if every criterion passes."
+                    ),
+                ),
+            ]
+        )
+        structured_model = self._model.with_structured_output(EvalCaseSchema)
+        response = structured_model.invoke(
+            prompt.invoke(
+                {
+                    "case_id": case_id,
+                    "case_title": case_title,
+                    "evaluation_target": evaluation_target,
+                    "selected_tool": selected_tool or "none",
+                    "conversation_transcript": conversation_transcript,
+                    "final_answer": final_answer,
+                    "pass_criteria": "\n".join(f"- {item}" for item in pass_criteria),
+                }
+            )
+        )
+        return EvalGradingResult(
+            passed=response.passed,
+            summary=response.summary.strip(),
+            criteria=[
+                EvalCriterionResult(
+                    criterion=item.criterion.strip(),
+                    passed=item.passed,
+                    explanation=item.explanation.strip(),
+                )
+                for item in response.criteria
+            ],
+        )
 
 
 @dataclass(frozen=True)

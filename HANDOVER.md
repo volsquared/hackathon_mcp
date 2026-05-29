@@ -456,3 +456,48 @@ EX-07 broke once because an inline YAML scalar included:
 The colon inside an unquoted plain scalar caused parse failure.
 
 Use block scalars for long summary text when colons are present.
+
+## EX-10: AI Needs Unit Tests Too
+
+- Added exercise at `../java/data/exercises/ex-010-ai-needs-unit-tests/exercise.yaml`
+  and registered it in both workflow manifests. Workflow versions are now
+  `v9-open` / `v9-challenge`.
+- New runtime assets:
+  - `runtime_assets/system_prompts/evidence_precedence_v1.yaml`
+  - `runtime_assets/system_prompts/evidence_precedence_v2_verbose.yaml`
+  - `runtime_assets/tool_descriptions/eval_annotated_v1.yaml`
+  - `runtime_assets/format_configs/eval_graded_v1.yaml`
+- `eval_graded_v1.yaml` contains a real `evaluation_suite` block with four
+  ground-truth cases:
+  - EX-05 credit boundary on `CUS015`
+  - EX-06 RM-pressure reconsideration sequence on `CUS015`
+  - EX-07 injected alert / trust hierarchy on `CUS019`
+  - EX-09 evidence precedence on `CUS009`
+- Replaced the old hardcoded `app/eval/runner.py` string-check script with a
+  real eval harness that:
+  - reads the active format pack's `evaluation_suite`
+  - runs each case through `run_agent`
+  - preserves multi-turn history for sequence cases
+  - uses the live LLM to grade pass/fail against explicit criteria
+  - returns overall pass rate plus per-case explanations
+- Streamlit UI now exposes `Run eval suite` when the active format pack defines
+  `evaluation_suite` (EX-10 `opt_a`). Results render inline above the chat.
+- `app/llm/base.py` / `app/llm/factory.py` now include eval-grading result
+  types and a `grade_eval_case(...)` client method.
+- `load_answer_contract()` now strips `evaluation_suite` before normal answer
+  generation so eval metadata does not leak into ordinary response-shaping.
+- Final cleanup removed the first-pass EX-10-specific production branching.
+  The cleaner end state is:
+  - eval runner + UI are EX-10-specific
+  - production routing/formatting are not
+  - two generic routing improvements remain because they are broadly useful:
+    - `current risk status` prompts with a customer id now route to
+      `get_customer_profile_and_alerts`
+    - prompts that explicitly contrast profile risk with recent fraud /
+      transactions / activity now route to `get_full_picture`
+  - same-session RM follow-up reuse is now generic rather than gated to a
+    specific exercise id
+- Validation completed:
+  - `.venv\Scripts\python.exe -m compileall .\app`
+  - `mvn -q -DskipTests compile`
+  - `mvn -q -Dtest=BankingResourceTest test`
