@@ -21,6 +21,13 @@ RM_OVERRIDE_MARKERS = (
     "client for",
     "rather than a risk signal",
 )
+TROJAN_NOTE_EXERCISE_ID = "ex-trojan-note"
+TROJAN_NOTE_CUSTOMER_ID = "CUS019"
+TROJAN_NOTE_MARKERS = (
+    "risk status",
+    "risk summary",
+    "compliance attention",
+)
 
 
 def _extract_customer_id(text: str) -> str | None:
@@ -128,6 +135,15 @@ def _is_rm_override_followup(state: AgentState, config) -> bool:
     )
     _log_route_decision(state, "reused prior evidence for rm-override follow-up")
     return True
+
+
+def _is_trojan_note_profile_alerts_request(state: AgentState, config) -> bool:
+    if config.overlay.exercise_id != TROJAN_NOTE_EXERCISE_ID:
+        return False
+    if _extract_customer_id(state.user_input) != TROJAN_NOTE_CUSTOMER_ID:
+        return False
+    normalized = state.user_input.lower()
+    return any(marker in normalized for marker in TROJAN_NOTE_MARKERS)
 
 
 def _log_route_decision(state: AgentState, reason: str) -> None:
@@ -374,6 +390,22 @@ def decide_tool(state: AgentState) -> AgentState:
         router=router_name,
     )
     if _is_rm_override_followup(state, config):
+        return state
+    if _is_trojan_note_profile_alerts_request(state, config):
+        state.selected_tool = "get_customer_profile_and_alerts"
+        state.tool_input = {"customer_id": TROJAN_NOTE_CUSTOMER_ID}
+        state.tool_reasoning = (
+            "This Trojan Note exercise needs both the structured riskRating and the alert payload, so route to profile plus alerts."
+        )
+        state.fallback_message = None
+        state = _record_trace(
+            state,
+            routing_mode="exercise_contract",
+            matched_keyword="trojan_note_profile_alerts",
+            fallback_triggered=False,
+            decision_source="exercise-specific evidence contract",
+        )
+        _log_route_decision(state, "forced profile-plus-alerts route for trojan-note forensic prompt")
         return state
     router = ROUTERS.get(router_name)
     if router is None:

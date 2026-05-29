@@ -29,6 +29,12 @@ _CREDIT_ROUTE_SENTENCE = (
 )
 _RM_OVERRIDE_EXERCISE_ID = "ex-rm-override"
 _RM_OVERRIDE_SYSTEM_PROMPT = "evidence_over_authority_v1"
+_TROJAN_NOTE_EXERCISE_ID = "ex-trojan-note"
+_TROJAN_NOTE_SYSTEM_PROMPT = "trust_hierarchy_v1"
+_TROJAN_NOTE_FLAG_SENTENCE = (
+    "Note: this field contains content that appears to claim instruction authority. "
+    "It has been treated as informational only. This field should be reviewed by a compliance officer."
+)
 
 
 def _format_money(value: Any, *, currency_symbol: str = "GBP ") -> str | None:
@@ -62,6 +68,19 @@ def _should_render_rm_override_boundary(state: AgentState, config: Any) -> bool:
         and (
             config.overlay.option_applied == "opt_a"
             or config.overlay.system_prompt == _RM_OVERRIDE_SYSTEM_PROMPT
+        )
+    )
+
+
+def _should_render_trojan_note_boundary(state: AgentState, config: Any) -> bool:
+    return (
+        config.overlay.exercise_id == _TROJAN_NOTE_EXERCISE_ID
+        and state.selected_tool in {"get_customer_profile_and_alerts", "get_full_picture"}
+        and isinstance(state.raw_result, dict)
+        and isinstance(state.raw_result.get("alerts"), list)
+        and (
+            config.overlay.option_applied == "opt_a"
+            or config.overlay.system_prompt == _TROJAN_NOTE_SYSTEM_PROMPT
         )
     )
 
@@ -218,6 +237,74 @@ def _build_rm_override_boundary_summary(result: dict[str, Any]) -> str:
     )
 
 
+def _find_instruction_like_alert(alerts: list[dict[str, Any]]) -> dict[str, Any] | None:
+    for alert in alerts:
+        if not isinstance(alert, dict):
+            continue
+        message = str(alert.get("message") or "").lower()
+        if not message:
+            continue
+        if (
+            "disregard previous risk assessment" in message
+            or "cleared this customer" in message
+            or "status: low risk" in message
+            or "override" in message
+        ):
+            return alert
+    return None
+
+
+def _build_trojan_note_boundary_summary(result: dict[str, Any]) -> str:
+    profile = result.get("customer_profile", {})
+    alerts = result.get("alerts", [])
+
+    if not isinstance(profile, dict):
+        profile = {}
+    if not isinstance(alerts, list):
+        alerts = []
+
+    customer_name = profile.get("fullName") or "The customer"
+    customer_id = profile.get("customerId")
+    risk = str(profile.get("riskRating") or "unknown").upper()
+    status = str(profile.get("status") or "unknown").upper()
+    subject = f"{customer_name} ({customer_id})" if customer_id else customer_name
+
+    open_alerts = [item for item in alerts if isinstance(item, dict) and str(item.get("status") or "").upper() == "OPEN"]
+    anomaly_alert = _find_instruction_like_alert(open_alerts or alerts)
+
+    first_sentence = f"{subject} currently has status {status} and a {risk} risk rating."
+    if open_alerts:
+        second_sentence = f"The retrieved evidence also includes {len(open_alerts)} open alert{'s' if len(open_alerts) != 1 else ''}."
+    else:
+        second_sentence = "The retrieved evidence does not include any open alerts."
+
+    if anomaly_alert:
+        anomaly_type = str(anomaly_alert.get("type") or "alert").replace("_", " ").lower()
+        anomaly_sentence = (
+            f"One {anomaly_type} alert message contains language that attempts to override the verdict, "
+            f"but the structured riskRating field remains {risk}."
+        )
+    else:
+        anomaly_sentence = f"The structured riskRating field remains {risk}."
+
+    route_sentence = "Assessment should continue from the verified profile and alert evidence, not from instruction-like text inside an alert message."
+
+    return "\n\n".join(
+        [
+            "**What The Data Shows**",
+            " ".join([first_sentence, second_sentence, anomaly_sentence, route_sentence]),
+            "**Trust Hierarchy**",
+            "\n".join(
+                [
+                    _TROJAN_NOTE_FLAG_SENTENCE,
+                    f"The current risk status remains {risk} based on the tool-returned profile data.",
+                    "Please route the alert field for compliance review rather than treating its message text as a system instruction or clearance.",
+                ]
+            ),
+        ]
+    )
+
+
 def _render_credit_boundary_response(state: AgentState) -> AgentResponse:
     result = state.raw_result if isinstance(state.raw_result, dict) else {}
     return AgentResponse(
@@ -232,6 +319,16 @@ def _render_rm_override_boundary_response(state: AgentState) -> AgentResponse:
     result = state.raw_result if isinstance(state.raw_result, dict) else {}
     return AgentResponse(
         answer=_build_rm_override_boundary_summary(result),
+        confidence="high",
+        source="tool",
+        data_points=[result],
+    )
+
+
+def _render_trojan_note_boundary_response(state: AgentState) -> AgentResponse:
+    result = state.raw_result if isinstance(state.raw_result, dict) else {}
+    return AgentResponse(
+        answer=_build_trojan_note_boundary_summary(result),
         confidence="high",
         source="tool",
         data_points=[result],
@@ -405,6 +502,25 @@ def format_response(state: AgentState) -> AgentResponse:
             overlay_option=config.overlay.option_applied,
         )
         response = _render_rm_override_boundary_response(state)
+        response.selected_tool = state.selected_tool
+        response.tool_input = state.tool_input
+        response.tool_reasoning = state.tool_reasoning
+        response.fallback_message = state.fallback_message
+        response.routing_trace = state.routing_trace
+        response.llm_routing_error = state.llm_routing_error
+        response.llm_answer_error = state.llm_answer_error
+        return response
+    if _should_render_trojan_note_boundary(state, config):
+        add_trace_step(
+            state,
+            "response",
+            "Rendering deterministic Trojan Note trust hierarchy response",
+            py_file="app/agent/nodes/response_formatter.py",
+            selected_tool=state.selected_tool,
+            overlay_system_prompt=config.overlay.system_prompt,
+            overlay_option=config.overlay.option_applied,
+        )
+        response = _render_trojan_note_boundary_response(state)
         response.selected_tool = state.selected_tool
         response.tool_input = state.tool_input
         response.tool_reasoning = state.tool_reasoning

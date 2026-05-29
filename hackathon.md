@@ -142,6 +142,42 @@ The `participant_id` should remain unchanged across restarts. That confirms iden
 is bootstrap-only and survives restart correctly.
 
 
+WORKSHOP YAML GUARDRAILS
+------------------------
+
+Use these rules when adding or editing Java workshop exercise YAML. Most of the
+recent EX-08 startup failures were new exercise-config validation failures, not
+broad app regressions.
+
+Validation constraints currently observed:
+
+- `concepts_covered` must contain at most 6 entries
+- `current_system_points` must contain at most 5 entries
+- recognition-mode `code_options[].overlay` must define `router`
+  even if it is the same value as the base overlay
+- YAML plain scalars containing `:` should be quoted, or moved to a block scalar
+
+Overlay source-of-truth rule:
+
+- the Java workshop applies the inline `code_options[].overlay` block from
+  `exercise.yaml`
+- `overlays/opt_*.json` files are snippet/reference files shown in the UI
+- do not assume snippet files are what gets applied at runtime
+
+Overlay/runtime wiring rule:
+
+- Java writes `.workshop/overlay_config.json`
+- Java injects `exercise_id` and `option_applied` when writing that file
+- Python fixed-state branches that gate on `config.overlay.exercise_id` depend on
+  that injected value, not on anything written inline in the exercise overlay
+
+Text-preservation rule:
+
+- preserve spec-authored participant-facing text verbatim by default
+- extra implementation wording is allowed only as an addition around the spec text
+- do not rewrite curated spec prose unless explicitly asked
+
+
 BACKEND VERIFICATION SCRIPT (T1–T6)
 ------------------------------------
 
