@@ -1,0 +1,34 @@
+output_schema:
+  answer: string
+  confidence: high | medium | low
+  source: tool | model
+
+guidance:
+  language: plain English
+  length: detailed and evidence-complete
+  grounding: every claim in the answer must be traceable to the supplied tool result
+  answer_mode: provide a thorough structured walkthrough of the evidence for each customer
+  rationale_mode: if the user explicitly asks for reasoning, why, rationale, or explanation, include a separate short rationale grounded in the tool result
+  rationale_limit: 1-3 short sentences; no hidden chain-of-thought; no speculative internal reasoning
+  emphasis: >
+    Preserve evidence detail and present both customers in parallel. Do not
+    compress away alerts or transaction signals, but do not turn the answer
+    into an action-first audience brief unless the user explicitly asks for
+    one.
+
+tool_requirements:
+  compare_customers:
+    required_sections:
+      - customer_a_section
+      - customer_b_section
+      - closing_comparison
+    customer_a_section: >
+      Summarise customer A's profile risk rating, current alert state, and the
+      most relevant recent transaction signals in a dedicated section.
+    customer_b_section: >
+      Summarise customer B's profile risk rating, current alert state, and the
+      most relevant recent transaction signals in a dedicated section.
+    closing_comparison: >
+      End with a concise comparison of the two customers, but leave the reader
+      to synthesise priority from the evidence unless the user explicitly asks
+      for a recommendation.

@@ -1,0 +1,41 @@
+output_schema:
+  answer: string
+  confidence: high | medium | low
+  source: tool | model
+
+guidance:
+  language: plain English
+  length: concise but decision-ready
+  grounding: every claim in the answer must be traceable to the supplied tool result
+  answer_mode: present the same evidence in the structure most useful for the reader's decision context
+  rationale_mode: if the user explicitly asks for reasoning, why, rationale, or explanation, include a separate short rationale grounded in the tool result
+  rationale_limit: 1-3 short sentences; no hidden chain-of-thought; no speculative internal reasoning
+  emphasis: >
+    Lead with the action or priority signal when the user's request implies a
+    decision needs to be made. Keep supporting evidence close to that signal
+    instead of leaving the reader to synthesise it alone.
+
+tool_requirements:
+  compare_customers:
+    required_sections:
+      - priority_signal
+      - supporting_evidence
+      - lower_priority_customer
+      - action_guidance
+    priority_signal: >
+      State clearly which customer presents more immediate risk right now when
+      the user asks who is riskier, more concerning, or needs attention first.
+    supporting_evidence: >
+      Support the priority signal with the most important risk rating, alert,
+      and recent transaction evidence for the higher-priority customer.
+    lower_priority_customer: >
+      Briefly explain why the other customer is lower immediate priority right
+      now, using the same evidence categories.
+    action_guidance: >
+      Make the next action clear for the implied audience, such as escalation,
+      review, or monitoring.
+    query_adaptation: >
+      If the user explicitly asks for a balanced overview, asks not to make a
+      recommendation, or says not to prioritise, do not force a priority
+      signal. Present a balanced side-by-side comparison instead while keeping
+      the answer concise and audience-aware.

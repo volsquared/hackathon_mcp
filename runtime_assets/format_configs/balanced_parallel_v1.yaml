@@ -1,0 +1,31 @@
+output_schema:
+  answer: string
+  confidence: high | medium | low
+  source: tool | model
+
+guidance:
+  language: plain English
+  length: concise and evidence-grounded
+  grounding: every claim in the answer must be traceable to the supplied tool result
+  answer_mode: >
+    Present both customers using the same evidence categories for each.
+    Report the evidence. Do not rank, compare priority, choose a winner,
+    or make an action recommendation anywhere in the response, not at
+    the start, not at the end, not implied. Stop after the evidence.
+
+tool_requirements:
+  compare_customers:
+    forbidden:
+      - ranking either customer as higher or lower priority
+      - stating which customer needs attention first or more urgently
+      - recommending escalation, review, or any next action
+      - any concluding or summary sentence that compares the two customers
+    required_sections:
+      - customer_a_section
+      - customer_b_section
+    customer_a_section: >
+      State customer A's risk rating, open alert count and severity, and
+      the most relevant recent transaction signals. Facts only.
+    customer_b_section: >
+      State customer B's risk rating, open alert count and severity, and
+      the most relevant recent transaction signals. Facts only.
