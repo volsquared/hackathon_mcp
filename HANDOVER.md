@@ -539,6 +539,53 @@ Use block scalars for long summary text when colons are present.
 - Java loader/startup validation passed after insertion:
   - `mvn -q -DskipTests compile`
   - `mvn -q -Dtest=BankingResourceTest test`
-- Manual live LLM validation of Trap Door base/fixed behaviour was not done in
-  this pass. The stage loads cleanly, but the actual prompt behaviour still
-  needs user-side verification in the app.
+- Manual live validation was completed after insertion:
+  - base state now shows the intended precedence failure
+  - `opt_a` now shows the intended leading-indicator / lagging-indicator fix
+  - both states were verified against the live app with `CUS009`
+
+## Final Trap Door shape
+
+- Added stage:
+  - `../java/data/exercises/ex-009-the-trap-door/exercise.yaml`
+- Added supporting assets:
+  - `runtime_assets/system_prompts/trust_hierarchy_v2_strict.yaml`
+  - `runtime_assets/format_configs/contradiction_surface_v1.yaml`
+  - `runtime_assets/tool_descriptions/recency_weighted_v1.yaml`
+- Trap Door needed a deterministic stage-layer formatter to reliably preserve
+  the intended pedagogy:
+  - base / `opt_b`: precedence failure, LOW profile still wins
+  - `opt_a`: explicit leading-indicator precedence fix
+  - `opt_c`: contradiction surfaced but not resolved
+  - `opt_d`: mild recency emphasis without proper precedence
+- Implementation is in:
+  - `app/agent/nodes/response_formatter.py`
+- Live validation outcome:
+  - base prompt on `CUS009`:
+    - surfaces fraud evidence
+    - still says overall posture remains aligned with LOW profile
+  - `opt_a` on same prompt:
+    - says profile rating is lagging
+    - says fraud transactions are leading indicators
+    - says concern is warranted
+    - says profile should be reviewed
+  - deterministic branch confirmed by `answer_rationale: null`
+
+## Visible order vs internal ids
+
+- Visible workshop order is now correct:
+  1. ex-002-system-is-blind
+  2. ex-003-give-it-a-brain
+  3. ex-004-ai-chose-wrong
+  4. ex-005-right-tool-wrong-answer
+  5. ex-006-confident-liar
+  6. ex-007-rm-override
+  7. ex-008-trojan-note
+  8. ex-009-same-data-different-reality
+  9. ex-trap-door
+  10. ex-ai-needs-unit-tests
+- Internal ids remain historically messy:
+  - `ex-009-same-data-different-reality` is still named as `ex-009-*`
+  - Trap Door is visible 9th but internally uses `ex-trap-door`
+- This is currently accepted. Functional flow is correct; internal numbering was
+  intentionally not refactored further.
