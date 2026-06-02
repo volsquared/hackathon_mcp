@@ -28,11 +28,37 @@ TROJAN_NOTE_MARKERS = (
     "risk summary",
     "compliance attention",
 )
+COMPARISON_MARKERS = (
+    "compare",
+    "comparison",
+    "versus",
+    "vs",
+    "which presents more risk",
+    "which is riskier",
+    "which is higher risk",
+    "higher-risk",
+    "more risk",
+    "higher risk",
+    "relative risk",
+    "priority",
+    "prioritise",
+    "prioritize",
+    "rank",
+)
 
 
 def _extract_customer_id(text: str) -> str | None:
     match = re.search(r"\bCUS\d{3}\b", text.upper())
     return match.group(0) if match else None
+
+
+def _extract_customer_ids(text: str) -> list[str]:
+    matches = re.findall(r"\bCUS\d{3}\b", text.upper())
+    deduped: list[str] = []
+    for customer_id in matches:
+        if customer_id not in deduped:
+            deduped.append(customer_id)
+    return deduped
 
 
 def _is_runtime_diagnostic_request(text: str) -> bool:
@@ -164,6 +190,17 @@ def _is_profile_and_recent_evidence_conflict_request(state: AgentState) -> bool:
         ("profile" in normalized or "risk rating" in normalized or "risk" in normalized)
         and ("fraud" in normalized or "transaction" in normalized or "activity" in normalized or "alert" in normalized)
     )
+
+
+def _is_two_customer_comparison_request(state: AgentState) -> bool:
+    customer_ids = _extract_customer_ids(state.user_input)
+    if len(customer_ids) != 2:
+        return False
+    normalized = state.user_input.lower()
+    mentions_risk = "risk" in normalized or "alert" in normalized or "fraud" in normalized
+    mentions_comparison = any(marker in normalized for marker in COMPARISON_MARKERS)
+    mentions_contrast = "which" in normalized or "both" in normalized or "between" in normalized
+    return mentions_risk and (mentions_comparison or mentions_contrast)
 
 
 def _log_route_decision(state: AgentState, reason: str) -> None:
@@ -410,6 +447,26 @@ def decide_tool(state: AgentState) -> AgentState:
         router=router_name,
     )
     if _is_rm_override_followup(state, config):
+        return state
+    if _is_two_customer_comparison_request(state):
+        customer_id_a, customer_id_b = _extract_customer_ids(state.user_input)
+        state.selected_tool = "compare_customers"
+        state.tool_input = {
+            "customer_id_a": customer_id_a,
+            "customer_id_b": customer_id_b,
+        }
+        state.tool_reasoning = (
+            "This request compares two named customers and asks for a relative risk judgment, so it needs the comparison tool."
+        )
+        state.fallback_message = None
+        state = _record_trace(
+            state,
+            routing_mode="deterministic",
+            matched_keyword="two_customer_comparison",
+            fallback_triggered=False,
+            decision_source="generic comparison rule",
+        )
+        _log_route_decision(state, "matched two-customer comparison rule")
         return state
     if _is_current_risk_status_request(state):
         customer_id = _extract_customer_id(state.user_input)

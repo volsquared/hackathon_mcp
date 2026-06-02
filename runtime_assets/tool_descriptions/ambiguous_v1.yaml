@@ -21,13 +21,14 @@ tools:
   - name: get_full_picture
     description: >
       Retrieve a complete customer view including profile context, alerts, and
-      recent activity when a deeper investigation is needed.
+      recent activity when a deeper investigation has already been requested.
 
   - name: get_customer_profile_and_alerts
     description: >
       Retrieve customer information together with alerts or issues that may
       need analyst attention. Use this when reviewing whether a customer needs
-      escalation or closer scrutiny.
+      escalation or closer scrutiny before deciding if a deeper investigation is
+      necessary.
 
   - name: compare_customers
     description: >

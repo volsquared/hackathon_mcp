@@ -589,3 +589,210 @@ Use block scalars for long summary text when colons are present.
   - Trap Door is visible 9th but internally uses `ex-trap-door`
 - This is currently accepted. Functional flow is correct; internal numbering was
   intentionally not refactored further.
+
+## 2026-05-31 update
+
+### Packaging and runtime-root work completed
+
+- Java now supports a single top-level `workshop.properties` as the workshop
+  runtime source of truth.
+- `workshop.properties` now drives:
+  - `workshop.profile`
+  - `workshop.llm.profile`
+  - `mcp.path`
+  - workflow/db/log paths
+- Workflow `python_project_path` now resolves from `${mcp.path}`.
+- Exercise snippet/context paths that point through `mcp/...` are rebound to
+  the configured MCP root instead of assuming repo-local layout.
+- Java boot overlay clobber bug was fixed:
+  - `ProgressRepository` no longer writes every unlocked stage's base overlay
+    on startup
+  - boot now writes only the first unlocked stage base overlay
+- README in `java/` now includes uber-jar packaging:
+  - `mvn clean package -DskipTests -Dquarkus.package.jar.type=uber-jar`
+- Runtime proof was done with:
+  - source repos under `C:\Users\upadh\git\hackathon\`
+  - separate runtime root under `C:\Users\upadh\git\hackathon_rt\`
+  - Java fat jar and `workshop.properties` in `hackathon_rt`
+  - MCP still outside runtime root via `mcp.path=../hackathon/mcp`
+- This external-root proof is important:
+  - it confirms path resolution is driven by `workshop.properties`
+  - it confirms Java can boot outside the source checkout
+  - it confirms MCP no longer has to be colocated to prove path correctness
+
+### Important runtime-copy reminder
+
+Several workshop text fixes were made in the git-controlled Java repo only.
+
+If validating through `hackathon_rt`, recopy updated files from:
+
+- `hackathon\java\data\...`
+
+into:
+
+- `hackathon_rt\java\data\...`
+
+Otherwise the runtime root will still show stale exercise YAML copy.
+
+This mattered during review of:
+
+- EX-03
+- EX-04
+- EX-05
+- EX-06
+- EX-07
+- EX-08
+- EX-09
+- Trap Door
+
+where the source YAML had already been fixed but `hackathon_rt` still had the
+old copy.
+
+### Exercise copy / sequencing fixes applied today
+
+The following exercise YAMLs were updated so the teaching flow no longer
+describes later-stage behavior before the participant has seen it:
+
+- `java/data/exercises/ex-003-give-it-a-brain/exercise.yaml`
+- `java/data/exercises/ex-004-ai-chose-wrong/exercise.yaml`
+- `java/data/exercises/ex-005-right-tool-wrong-answer/exercise.yaml`
+- `java/data/exercises/ex-006-confident-liar/exercise.yaml`
+- `java/data/exercises/ex-007-rm-override/exercise.yaml`
+- `java/data/exercises/ex-008-trojan-note/exercise.yaml`
+- `java/data/exercises/ex-009-same-data-different-reality/exercise.yaml`
+- `java/data/exercises/ex-009-the-trap-door/exercise.yaml`
+
+Trap Door also had its "what this exercise teaches" language strengthened to
+make the evidence-precedence lesson explicit.
+
+### Live validation results from today
+
+#### EX-04: AI Chose Wrong
+
+- fixed state works
+- base state has drifted and no longer demonstrates the intended wrong-tool
+  failure strongly enough
+- active overlay was confirmed correct during admin reset testing:
+  - `exercise_id: ex-ai-chose-wrong`
+  - `router: semantic_with_descriptions`
+  - `tool_descriptions: ambiguous_v1`
+- current issue is pedagogical/runtime behavior drift, not packaging/pathing
+
+#### EX-05: Right Tool, Wrong Answer
+
+- base state acceptable
+- fixed state acceptable
+
+#### EX-06: Confident Liar
+
+- base state acceptable
+- fixed state acceptable
+- workshop copy improved to explain that the data cannot support a credit-line
+  recommendation and therefore needs epistemic boundaries
+
+#### EX-07: RM Override
+
+- fixed state acceptable
+- one pre-state validation showed visible EX-06-style credit-boundary copy in
+  the wrong place
+- JSON/tool behavior looked normal, but visible answer looked contaminated
+- this remained suspicious enough to patch defensively in Python (see below)
+
+#### EX-08: Trojan Note
+
+- fixed state acceptable
+- base state still demonstrates the correct class of failure, but more softly
+  than earlier builds
+
+#### EX-09: Same Data, Different Reality
+
+- broken during live validation
+- both base and fixed states were using `get_full_picture` on one customer
+  instead of entering a true two-customer comparison flow
+- visible output also looked contaminated by EX-08-style trust-hierarchy copy
+- this was traced to missing explicit two-customer comparison routing in Python
+
+#### Trap Door
+
+- fixed state acceptable
+- base state now feels too weak pedagogically
+- it no longer demonstrates a strong enough precedence failure to teach the
+  lesson cleanly
+
+### Python fixes applied today
+
+Files changed:
+
+- `mcp/app/agent/nodes/tool_decision.py`
+- `mcp/app/agent/nodes/response_formatter.py`
+- `mcp/runtime_assets/tool_descriptions/ambiguous_v1.yaml`
+
+What changed:
+
+- added an explicit two-customer comparison route in `tool_decision.py`
+  - prompts with exactly two `CUS###` ids plus comparison/risk language now
+    route to `compare_customers`
+  - this runs before the generic single-customer profile-vs-recent-evidence
+    rule can hijack EX-09
+- tightened the deterministic EX-06 credit-boundary formatter
+  - it now requires:
+    - `exercise_id == ex-confident-liar`
+    - `format == credit_boundary_v1`
+    - `selected_tool == get_full_picture`
+    - credit-framed user input
+  - this was done to reduce leakage into later stages such as EX-07
+- sharpened `runtime_assets/tool_descriptions/ambiguous_v1.yaml`
+  - `get_customer_profile_and_alerts` now sounds more like the "review first
+    before deeper investigation" tool
+  - `get_full_picture` now sounds more like the "deeper investigation already
+    requested" tool
+  - this is intended to make EX-04 base-state misrouting more consistent again
+
+### Verification state
+
+- `git diff --check` was clean after today's Python edits
+- Python compile verification could not be run from this shell because no
+  accessible `python` / `py` binary was available in the current environment
+- Java compile had already been passing during the copy/packaging work earlier
+
+### Remaining required retest / fix list
+
+These are the real items to pick up next:
+
+1. Retest EX-04 base state after the `ambiguous_v1` change.
+   - Goal: confirm the base state now demonstrates the intended wrong-tool
+     failure more clearly.
+
+2. Retest EX-07 pre-state after the credit-boundary formatter guard change.
+   - Goal: confirm EX-06 boundary copy no longer leaks into EX-07.
+
+3. Retest EX-09 base and fixed states after the new comparison route.
+   - Goal: confirm prompts over `CUS020` and `CUS021` now hit
+     `compare_customers` instead of `get_full_picture`.
+   - If EX-09 still misbehaves after routing fix, the next patch target is the
+     answer-generation / format layer for comparison output, not the router.
+
+4. Reassess Trap Door base state.
+   - Current concern: fixed state is good, but base state may still be too weak
+     pedagogically.
+
+### Deferred items
+
+These were noticed but intentionally not fixed yet:
+
+- normal participant stage navigation should activate the selected stage
+  `base_overlay`
+- repeated `Resolved workshop LLM profile` logging is noisy and should be
+  reduced or cached
+
+### Tomorrow's retest plan
+
+1. Rebuild/copy the latest runtime artifacts if testing from `hackathon_rt`.
+2. Recopy updated `java/data/exercises/...` YAMLs into the runtime root.
+3. Restart Java + Streamlit.
+4. Retest in this order:
+   - EX-04 base
+   - EX-07 pre-state
+   - EX-09 base
+   - EX-09 fixed
+   - Trap Door base if time remains

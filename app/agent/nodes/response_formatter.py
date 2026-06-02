@@ -27,6 +27,7 @@ _CREDIT_ROUTE_SENTENCE = (
     "Please route this case to the appropriate credit specialist or underwriting process "
     "for any lending decision."
 )
+_CREDIT_BOUNDARY_EXERCISE_ID = "ex-confident-liar"
 _RM_OVERRIDE_EXERCISE_ID = "ex-rm-override"
 _RM_OVERRIDE_SYSTEM_PROMPT = "evidence_over_authority_v1"
 _TROJAN_NOTE_EXERCISE_ID = "ex-trojan-note"
@@ -53,6 +54,8 @@ def _is_credit_framed_request(user_input: str) -> bool:
 
 def _should_render_credit_boundary(state: AgentState, config: Any) -> bool:
     return (
+        config.overlay.exercise_id == _CREDIT_BOUNDARY_EXERCISE_ID
+        and
         state.selected_tool == "get_full_picture"
         and isinstance(state.raw_result, dict)
         and config.overlay.format == "credit_boundary_v1"
