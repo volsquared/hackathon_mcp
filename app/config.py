@@ -30,6 +30,7 @@ class OverlayLLMSettings:
     provider: str | None = None
     model: str | None = None
     api_base: str | None = None
+    api_base_env: str | None = None
     api_key_env: str | None = None
 
 
@@ -108,6 +109,7 @@ def _parse_overlay_settings(payload: dict[str, Any]) -> OverlaySettings:
             provider=str(llm_payload["provider"]) if llm_payload.get("provider") is not None else None,
             model=str(llm_payload["model"]) if llm_payload.get("model") is not None else None,
             api_base=str(llm_payload["api_base"]) if llm_payload.get("api_base") is not None else None,
+            api_base_env=str(llm_payload["api_base_env"]) if llm_payload.get("api_base_env") is not None else None,
             api_key_env=str(llm_payload["api_key_env"]) if llm_payload.get("api_key_env") is not None else None,
         ),
     )
@@ -128,6 +130,7 @@ def load_app_config(config_path: Path = APP_CONFIG_PATH) -> AppConfig:
 
     overlay_payload = _load_overlay_payload()
     overlay = _parse_overlay_settings(overlay_payload)
+    overlay_api_base = os.getenv(overlay.llm.api_base_env) if overlay.llm.api_base_env else None
 
     llm = LLMSettings(
         enabled=_parse_bool(
@@ -136,7 +139,7 @@ def load_app_config(config_path: Path = APP_CONFIG_PATH) -> AppConfig:
         ),
         provider=str(os.getenv("LLM_PROVIDER") or overlay.llm.provider or llm_payload.get("provider") or "openai"),
         model=str(os.getenv("LLM_MODEL") or overlay.llm.model or llm_payload.get("model") or "gpt-4.1-mini"),
-        api_base=os.getenv("LLM_API_BASE") or overlay.llm.api_base or llm_payload.get("api_base"),
+        api_base=os.getenv("LLM_API_BASE") or overlay_api_base or overlay.llm.api_base or llm_payload.get("api_base"),
         api_key_env=str(os.getenv("LLM_API_KEY_ENV") or overlay.llm.api_key_env or llm_payload.get("api_key_env") or "OPENAI_API_KEY"),
     )
 
