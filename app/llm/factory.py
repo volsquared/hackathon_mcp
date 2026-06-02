@@ -1,10 +1,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 import os
 from pathlib import Path
 from typing import Any
 from typing import Literal
+
+import httpx
+try:
+    import truststore
+except ImportError:
+    truststore = None
+
+if truststore is not None:
+    truststore.inject_into_ssl()
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
@@ -191,10 +201,40 @@ class LangChainLLMClient:
 
     def _build_model(self):
         if self.provider in {"openai", "cortex"}:
+            class DebugTransport(httpx.BaseTransport):
+                def __init__(self, wrapped: httpx.BaseTransport) -> None:
+                    self.wrapped = wrapped
+
+                def handle_request(self, request: httpx.Request) -> httpx.Response:
+                    print("\n===== OUTGOING LLM REQUEST =====")
+                    print(f"{request.method} {request.url}")
+                    print("\n--- Headers ---")
+                    for key, value in request.headers.items():
+                        print(f"{key}: {value}")
+
+                    print("\n--- Body ---")
+                    body = request.read()
+                    try:
+                        parsed = json.loads(body.decode("utf-8"))
+                        print(json.dumps(parsed, indent=2))
+                    except Exception:
+                        try:
+                            print(body.decode("utf-8"))
+                        except Exception:
+                            print(body)
+                    print("===== END REQUEST =====\n")
+                    return self.wrapped.handle_request(request)
+
+            http_client = httpx.Client(
+                transport=DebugTransport(httpx.HTTPTransport()),
+                timeout=60.0,
+            )
+
             kwargs: dict[str, Any] = {
                 "model": self.model,
                 "api_key": self.api_key,
                 "temperature": 0,
+                "http_client": http_client,
             }
             if self.api_base:
                 kwargs["base_url"] = self.api_base
