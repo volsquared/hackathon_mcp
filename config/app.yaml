@@ -2,18 +2,18 @@ llm:
 #  enabled: false
 #  provider: cortex
 #  model: gemini-2.5-flash
-#  api_base:
+#  api_base_env: LLM_API_BASE
 #  api_key_env: GEMINI_API_KEY
 
 # Example combinations:
 #  provider: cortex
 #  model: gemini-2.5-flash
-#  api_base: REPLACE_WITH_BANK_CORTEX_URL
+#  api_base_env: LLM_API_BASE
 #  api_key_env: GEMINI_API_KEY
 
    enabled: true
    provider: openai
    model: gpt-4.1-mini
+   api_base_env: LLM_API_BASE
    api_key_env: OPENAI_API_KEY
-
 

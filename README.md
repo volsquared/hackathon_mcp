@@ -101,7 +101,7 @@ If you are routing through an internal OpenAI-compatible gateway such as CorteX,
 
 - `provider: cortex`
 - `model: gemini-2.5-flash` or `gemini-2.5-pro`
-- `LLM_API_BASE` or `llm.api_base` set to the gateway URL
+- `LLM_API_BASE` set to the gateway URL, with `llm.api_base_env: LLM_API_BASE`
 - `api_key_env` set to the env var that holds the shared key, for example `GEMINI_API_KEY`
 
 What "choose provider and model" means:
