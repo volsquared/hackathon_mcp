@@ -15,5 +15,6 @@ claude-session.md
 gpt-session.md
 logs/
 logs/*
+.workshop/
 .workshop/overlay_config.json
 .workshop/*_complete.json
