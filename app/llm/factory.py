@@ -25,7 +25,12 @@ import yaml
 
 from app.config import AppConfig, load_app_config
 from app.llm.base import AnswerGenerationResult, EvalCriterionResult, EvalGradingResult, LLMClient, ToolChoiceResult
-from app.runtime_overlays import get_format_payload, get_system_prompt_payload, get_tool_description_payload
+from app.runtime_overlays import (
+    get_format_payload,
+    get_ontology_payload,
+    get_system_prompt_payload,
+    get_tool_description_payload,
+)
 
 
 SUPPORTED_PROVIDERS = {"openai", "gemini", "claude", "cortex"}
@@ -104,7 +109,43 @@ def load_system_prompt(config: AppConfig | None = None) -> str:
     payload = get_system_prompt_payload(config)
     if not payload:
         payload = _load_yaml(_prompts_dir() / "system.yaml")
-    return str(payload.get("content") or "").strip()
+    base_prompt = str(payload.get("content") or "").strip()
+    ontology_contract = load_ontology_contract(config)
+    if not ontology_contract:
+        return base_prompt
+    return f"{base_prompt}\n\n{ontology_contract}".strip()
+
+
+def load_ontology_contract(config: AppConfig | None = None) -> str:
+    payload = get_ontology_payload(config)
+    if not payload or not isinstance(payload, dict):
+        return ""
+    terms = payload.get("terms")
+    if not isinstance(terms, dict) or not terms:
+        return ""
+
+    lines: list[str] = [
+        "Domain ontology for banking vocabulary:",
+        "Use these definitions when choosing tools and when interpreting the user's terminology.",
+        "Do not fall back to general-language meanings when a term is defined here.",
+    ]
+    for term, definition in terms.items():
+        if not isinstance(definition, dict):
+            continue
+        lines.append(f"- {term}:")
+        meaning = str(definition.get("definition") or "").strip()
+        if meaning:
+            lines.append(f"  Definition: {meaning}")
+        preferred_tool = str(definition.get("preferred_tool") or "").strip()
+        if preferred_tool:
+            lines.append(f"  Preferred tool: {preferred_tool}")
+        mapped_tools = definition.get("maps_to_tools")
+        if isinstance(mapped_tools, list) and mapped_tools:
+            lines.append(f"  Evidence sources: {', '.join(str(item) for item in mapped_tools)}")
+        exclusions = definition.get("do_not_conflate_with")
+        if isinstance(exclusions, list) and exclusions:
+            lines.append(f"  Do not conflate with: {', '.join(str(item) for item in exclusions)}")
+    return "\n".join(lines).strip()
 
 
 def load_available_tools(config: AppConfig | None = None) -> list[str]:

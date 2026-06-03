@@ -1,0 +1,57 @@
+terms:
+  suspicious:
+    definition: >
+      In this system, suspicious means: a customer has at least one open
+      alert of any severity OR at least one fraud-flagged transaction in the
+      past 90 days. Suspicious does not mean general unease or intuition
+      about a customer.
+    preferred_tool: get_full_picture
+    maps_to_tools:
+      - get_alerts
+      - get_transactions
+    do_not_conflate_with:
+      - high_risk
+      - anomalous
+
+  anomalous:
+    definition: >
+      In this system, anomalous means: a customer's recent transaction
+      pattern deviates significantly from their established baseline in
+      volume, merchant category, channel, or timing. Use the customer's
+      prior activity as the baseline when it is present in the returned
+      evidence. If recent activity introduces materially new categories,
+      channels, or concentration that were not present in the prior
+      baseline, treat that as anomalous even when no fraud flag exists.
+      Anomalous does not imply fraud or confirmed risk.
+    preferred_tool: get_full_picture
+    maps_to_tools:
+      - get_transactions
+      - get_spending_summary
+    do_not_conflate_with:
+      - suspicious
+      - fraudulent
+
+  high_risk:
+    definition: >
+      In this system, high risk means: a customer's stored riskRating field
+      is HIGH or CRITICAL. High risk is a periodic classification. It does
+      not indicate current alert state or recent transaction behaviour.
+    preferred_tool: get_customer_profile
+    maps_to_tools:
+      - get_customer_profile
+    do_not_conflate_with:
+      - suspicious
+      - anomalous
+
+  concerning:
+    definition: >
+      In this system, concerning means: a customer has both a HIGH or
+      CRITICAL riskRating AND at least one open alert. Concerning combines
+      profile classification with current alert state.
+    preferred_tool: get_customer_profile_and_alerts
+    maps_to_tools:
+      - get_customer_profile
+      - get_alerts
+    do_not_conflate_with:
+      - suspicious
+      - high_risk

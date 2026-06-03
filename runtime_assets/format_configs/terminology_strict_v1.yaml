@@ -1,0 +1,30 @@
+output_schema:
+  answer: string
+  confidence: high | medium | low
+  source: tool | model
+
+guidance:
+  language: plain English
+  length: concise but explicit
+  grounding: every claim in the answer must be traceable to the supplied tool result
+  answer_mode: answer the question directly and define the key banking term before using it in the conclusion
+  rationale_mode: if the user explicitly asks for reasoning, why, rationale, or explanation, include a separate short rationale grounded in the tool result
+  rationale_limit: 1-3 short sentences; no hidden chain-of-thought; no speculative internal reasoning
+  emphasis: >
+    Make the term definition visible before the verdict so the reader can see
+    which meaning the model is applying. This is a presentation rule only.
+
+tool_requirements:
+  default:
+    required_sections:
+      - term_definition
+      - evidence
+      - verdict
+    term_definition: >
+      State the definition you are using for the central risk term in the
+      user's question before giving the verdict.
+    evidence: >
+      Summarize the evidence returned by the selected tool that supports the
+      verdict.
+    verdict: >
+      State the final conclusion using the term you defined.
