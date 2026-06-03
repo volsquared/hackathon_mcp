@@ -1,0 +1,31 @@
+output_schema:
+  answer: string
+  confidence: high | medium | low
+  source: tool | model
+
+guidance:
+  language: plain English
+  length: concise
+  grounding: every claim in the answer must be traceable to the supplied tool result
+  answer_mode: answer directly by leading with the customer's current profile standing and risk rating
+  emphasis: >
+    Treat the customer profile, account status, and current risk rating as the
+    primary frame for the answer. Mention alerts or transactions as supporting
+    context rather than as the main conclusion unless the tool result states a
+    final reviewed risk change explicitly.
+  compression_rule: >
+    Prefer a short standing-first summary. It is acceptable to compress
+    secondary evidence categories into brief supporting context and to omit
+    grouped spending detail when other evidence has already been mentioned.
+
+tool_requirements:
+  get_full_picture:
+    required_sections:
+      - profile_anchor
+      - supporting_evidence
+    profile_anchor: >
+      Begin with the customer name or id, account status, segment, and current
+      profile risk rating as the main framing of the answer.
+    supporting_evidence: >
+      After the profile framing, briefly note the most important active alert
+      or flagged activity for awareness. Keep the summary short.

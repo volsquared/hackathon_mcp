@@ -796,3 +796,201 @@ These were noticed but intentionally not fixed yet:
    - EX-09 base
    - EX-09 fixed
    - Trap Door base if time remains
+
+## 2026-06-02 update
+
+### Workshop LLM / overlay config changes
+
+- Java workshop/runtime selection now separates GPT and Gemini workflow
+  families at boot time.
+- `workshop.llm.profile` now maps to workflow family like this:
+  - `cortex`, `gemini`, `default` -> `gemini`
+  - `gpt`, `openai` -> `gpt`
+- Important runtime rule:
+  - Cortex is treated as Gemini-family for workflow selection because the
+    hackathon Cortex runtime is Gemini-backed.
+
+Files changed:
+
+- `../java/src/main/java/com/hackathon/banking/workshop/config/WorkshopRuntimeProfile.java`
+- `../java/src/main/java/com/hackathon/banking/workshop/config/WorkshopPropertiesConfigSource.java`
+- `../java/src/main/java/com/hackathon/banking/workshop/WorkshopBootstrap.java`
+- `../java/src/main/java/com/hackathon/banking/workshop/config/WorkflowConfigService.java`
+- `../java/src/main/java/com/hackathon/banking/workshop/progress/ProgressRepository.java`
+- `config/app.yaml`
+- `.env.example`
+- `README.md`
+
+### Important startup logging added
+
+Java startup now logs a clear config banner showing:
+
+- `workshop.profile`
+- `workshop.llm.profile`
+- resolved `llm workflow family`
+- selected workflow path
+- progress DB path
+- override log path
+
+This is important for debugging copied runtime roots.
+
+### New workflow split
+
+The old shared workflow YAMLs were removed and replaced with explicit
+per-family files:
+
+- `../java/data/workflow-open-gpt.yaml`
+- `../java/data/workflow-open-gemini.yaml`
+- `../java/data/workflow-challenge-gpt.yaml`
+- `../java/data/workflow-challenge-gemini.yaml`
+
+Deleted:
+
+- `../java/data/workflow-open.yaml`
+- `../java/data/workflow-challenge.yaml`
+
+`../java/workshop.properties` now points:
+
+- GPT/openai profile -> GPT workflow files
+- Gemini/cortex profile -> Gemini workflow files
+
+### Stage 2 / config wiring cleanup
+
+The Python-side config and Stage 2 exercise were aligned on:
+
+- `api_base_env: LLM_API_BASE`
+- `.env` carries:
+  - `LLM_API_BASE=<gateway-url>`
+  - `GEMINI_API_KEY=<key>`
+
+Important clarification:
+
+- `LLM_API_BASE` is the gateway URL env var
+- `GEMINI_API_KEY` is the key env var
+
+Stage 2 (`ex-003-give-it-a-brain`) exercise text and scaffold snippets were
+updated accordingly, including the scaffold `.env` files.
+
+### Gemini branch separation
+
+The original GPT exercises remain untouched as the GPT baseline.
+
+Gemini-specific duplicate exercise folders now exist for a fully separate
+Gemini chain. This was done intentionally to avoid any intersection between
+GPT and Gemini `unlock_after` dependencies.
+
+Current Gemini exercise branch:
+
+- `../java/data/exercises/ex-004-ai-chose-wrong-gemini`
+- `../java/data/exercises/ex-005-right-tool-wrong-answer-gemini`
+- `../java/data/exercises/ex-006-confident-liar-gemini`
+- `../java/data/exercises/ex-007-rm-override-gemini`
+- `../java/data/exercises/ex-008-trojan-note-gemini`
+- `../java/data/exercises/ex-009-same-data-different-reality-gemini`
+- `../java/data/exercises/ex-009-the-trap-door-gemini`
+- `../java/data/exercises/ex-010-ai-needs-unit-tests-gemini`
+
+Each Gemini copy now has:
+
+- its own Gemini-specific `id`
+- `unlock_after` pointing only to the prior Gemini stage
+
+This was necessary once `EX-04` was given a Gemini-specific id; otherwise the
+Gemini workflow would point back into the GPT chain and boot validation would
+fail.
+
+### EX-04 Gemini work started
+
+New Gemini-specific files added:
+
+- `runtime_assets/tool_descriptions/ambiguous_gemini_v1.yaml`
+- `../java/data/exercises/ex-004-ai-chose-wrong-gemini/exercise.yaml`
+- `../java/data/exercises/ex-004-ai-chose-wrong-gemini/overlays/...`
+
+Goal:
+
+- keep GPT `EX-04` untouched
+- create a Gemini-only `EX-04` with a stronger ambiguous base state
+
+#### Current Gemini EX-04 status
+
+Still unresolved.
+
+Observed live base-state result under Gemini:
+
+- `selected_tool: get_full_picture`
+- `routing_mode: llm`
+- visible answer already uses the broad evidence path
+
+So the Gemini base state is still behaving like the fixed state.
+
+What has already been tried:
+
+1. New Gemini duplicate exercise with:
+   - Gemini-specific id
+   - Gemini-specific ambiguous tool pack
+   - new pinned prompt wording
+2. Strengthened `ambiguous_gemini_v1.yaml` once more so:
+   - `get_customer_profile_and_alerts` explicitly claims pre-escalation
+     screening / first-step territory
+   - `get_full_picture` sounds more like post-decision / formal-investigation
+     territory
+
+Even after that strengthening pass, the model still selected
+`get_full_picture`.
+
+#### Next step for tomorrow
+
+`EX-04` Gemini needs another retune.
+
+Likely direction:
+
+- make the pinned base prompt even narrower / more triage-shaped
+- further strengthen the Gemini ambiguous pack so the narrower tool explicitly
+  owns first-pass escalation screening
+- leave GPT `EX-04` untouched
+
+### Runtime copy / restart guidance
+
+Important distinction discovered during testing:
+
+- Java may run from a copied runtime area
+- Streamlit may also run from a copied runtime area, depending on the setup
+
+So after changing files, verify which side is actually running from where
+before assuming a restart is enough.
+
+For Java-side changes today, the safe copy target is:
+
+- the entire `../java/data/` folder
+- plus `../java/workshop.properties` if using a copied Java runtime root
+
+For Python-side Gemini EX-04 retune changes:
+
+- if Streamlit runs from the repo checkout, restart Streamlit only
+- if Streamlit runs from a copied MCP runtime area, copy the updated
+  `runtime_assets/tool_descriptions/ambiguous_gemini_v1.yaml` there first and
+  then restart Streamlit
+
+### Git / environment note
+
+- `git status` in `mcp` showed:
+  - `M config/app.yaml`
+  - `?? runtime_assets/tool_descriptions/ambiguous_gemini_v1.yaml`
+- `git -C ../java status` could not be read from this session because Windows
+  reported dubious ownership / safe-directory mismatch for the `java` repo in
+  this environment.
+
+### Tomorrow's immediate pickup point
+
+Start here:
+
+1. Confirm the copied runtime root has:
+   - new `workshop.properties`
+   - new GPT/Gemini workflow YAMLs
+   - Gemini exercise folders
+   - updated Python runtime asset `ambiguous_gemini_v1.yaml`
+2. Restart Java and Streamlit in the actual runtime area being used.
+3. Re-run Gemini `EX-04` base state.
+4. If it still routes to `get_full_picture`, tighten only the Gemini branch
+   again. Do not touch GPT content.
