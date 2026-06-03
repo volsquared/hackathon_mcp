@@ -27,12 +27,12 @@ _CREDIT_ROUTE_SENTENCE = (
     "Please route this case to the appropriate credit specialist or underwriting process "
     "for any lending decision."
 )
-_CREDIT_BOUNDARY_EXERCISE_ID = "ex-confident-liar"
-_RM_OVERRIDE_EXERCISE_ID = "ex-rm-override"
+_CREDIT_BOUNDARY_EXERCISE_IDS = {"ex-confident-liar", "ex-confident-liar-gemini"}
+_RM_OVERRIDE_EXERCISE_IDS = {"ex-rm-override", "ex-rm-override-gemini"}
 _RM_OVERRIDE_SYSTEM_PROMPT = "evidence_over_authority_v1"
-_TROJAN_NOTE_EXERCISE_ID = "ex-trojan-note"
+_TROJAN_NOTE_EXERCISE_IDS = {"ex-trojan-note", "ex-trojan-note-gemini"}
 _TROJAN_NOTE_SYSTEM_PROMPT = "trust_hierarchy_v1"
-_TRAP_DOOR_EXERCISE_ID = "ex-trap-door"
+_TRAP_DOOR_EXERCISE_IDS = {"ex-trap-door", "ex-trap-door-gemini"}
 _TRAP_DOOR_CUSTOMER_ID = "CUS009"
 _TROJAN_NOTE_FLAG_SENTENCE = (
     "Note: this field contains content that appears to claim instruction authority. "
@@ -52,9 +52,13 @@ def _is_credit_framed_request(user_input: str) -> bool:
     return bool(_CREDIT_INTENT_PATTERN.search(user_input))
 
 
+def _exercise_id_matches(config: Any, expected_ids: set[str]) -> bool:
+    return str(config.overlay.exercise_id or "") in expected_ids
+
+
 def _should_render_credit_boundary(state: AgentState, config: Any) -> bool:
     return (
-        config.overlay.exercise_id == _CREDIT_BOUNDARY_EXERCISE_ID
+        _exercise_id_matches(config, _CREDIT_BOUNDARY_EXERCISE_IDS)
         and
         state.selected_tool == "get_full_picture"
         and isinstance(state.raw_result, dict)
@@ -65,7 +69,7 @@ def _should_render_credit_boundary(state: AgentState, config: Any) -> bool:
 
 def _should_render_rm_override_boundary(state: AgentState, config: Any) -> bool:
     return (
-        config.overlay.exercise_id == _RM_OVERRIDE_EXERCISE_ID
+        _exercise_id_matches(config, _RM_OVERRIDE_EXERCISE_IDS)
         and isinstance(state.raw_result, dict)
         and state.reuse_previous_tool_result
         and state.routing_trace.get("routing_mode") == "session_reuse"
@@ -79,7 +83,7 @@ def _should_render_rm_override_boundary(state: AgentState, config: Any) -> bool:
 
 def _should_render_trojan_note_boundary(state: AgentState, config: Any) -> bool:
     return (
-        config.overlay.exercise_id == _TROJAN_NOTE_EXERCISE_ID
+        _exercise_id_matches(config, _TROJAN_NOTE_EXERCISE_IDS)
         and state.selected_tool in {"get_customer_profile_and_alerts", "get_full_picture"}
         and isinstance(state.raw_result, dict)
         and isinstance(state.raw_result.get("alerts"), list)
@@ -99,7 +103,7 @@ def _is_trap_door_payload(result: dict[str, Any]) -> bool:
 
 def _should_render_trap_door_response(state: AgentState, config: Any) -> bool:
     return (
-        config.overlay.exercise_id == _TRAP_DOOR_EXERCISE_ID
+        _exercise_id_matches(config, _TRAP_DOOR_EXERCISE_IDS)
         and state.selected_tool == "get_full_picture"
         and isinstance(state.raw_result, dict)
         and _is_trap_door_payload(state.raw_result)
