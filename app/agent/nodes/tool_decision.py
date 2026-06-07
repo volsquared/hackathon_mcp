@@ -45,6 +45,18 @@ COMPARISON_MARKERS = (
     "prioritize",
     "rank",
 )
+CREDIT_INTENT_MARKERS = (
+    "credit line",
+    "credit-line",
+    "credit limit",
+    "approve credit",
+    "approval",
+    "underwriting",
+    "lending",
+    "credit decision",
+    "creditworthiness",
+    "affordability",
+)
 
 
 def _extract_customer_id(text: str) -> str | None:
@@ -190,6 +202,14 @@ def _is_profile_and_recent_evidence_conflict_request(state: AgentState) -> bool:
         ("profile" in normalized or "risk rating" in normalized or "risk" in normalized)
         and ("fraud" in normalized or "transaction" in normalized or "activity" in normalized or "alert" in normalized)
     )
+
+
+def _is_single_customer_credit_request(state: AgentState) -> bool:
+    customer_ids = _extract_customer_ids(state.user_input)
+    if len(customer_ids) != 1:
+        return False
+    normalized = state.user_input.lower()
+    return any(marker in normalized for marker in CREDIT_INTENT_MARKERS)
 
 
 def _is_two_customer_comparison_request(state: AgentState) -> bool:
@@ -467,6 +487,23 @@ def decide_tool(state: AgentState) -> AgentState:
             decision_source="generic comparison rule",
         )
         _log_route_decision(state, "matched two-customer comparison rule")
+        return state
+    if _is_single_customer_credit_request(state):
+        customer_id = _extract_customer_id(state.user_input)
+        state.selected_tool = "get_full_picture"
+        state.tool_input = {"customer_id": customer_id}
+        state.tool_reasoning = (
+            "A single-customer credit or underwriting request needs the full evidence package rather than a narrow profile or alert view."
+        )
+        state.fallback_message = None
+        state = _record_trace(
+            state,
+            routing_mode="deterministic",
+            matched_keyword="single_customer_credit_request",
+            fallback_triggered=False,
+            decision_source="generic credit-intent rule",
+        )
+        _log_route_decision(state, "matched single-customer credit-intent rule")
         return state
     if _is_current_risk_status_request(state):
         customer_id = _extract_customer_id(state.user_input)

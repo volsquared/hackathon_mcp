@@ -994,3 +994,156 @@ Start here:
 3. Re-run Gemini `EX-04` base state.
 4. If it still routes to `get_full_picture`, tighten only the Gemini branch
    again. Do not touch GPT content.
+
+## 2026-06-03 (later)
+
+### EX-12 final outcome
+
+`EX-12` (`Teach It Your Language`) was completed and validated live.
+
+What was implemented:
+
+- ontology is now a real runtime surface in the Python stack via
+  `app/llm/factory.py`
+- dedicated EX-12 fixtures were added in
+  `../java/src/main/java/com/hackathon/banking/repository/BankingRepository.java`
+  - `CUS022` suspicious
+  - `CUS023` concerning
+  - `CUS024` anomalous
+  - `CUS025` high risk
+- new runtime assets:
+  - `runtime_assets/ontologies/banking_domain_v1.yaml`
+  - `runtime_assets/tool_descriptions/domain_vocabulary_v1.yaml`
+  - `runtime_assets/system_prompts/domain_aware_v1.yaml`
+  - `runtime_assets/format_configs/terminology_strict_v1.yaml`
+- new exercise folders:
+  - `../java/data/exercises/ex-012-teach-it-your-language`
+  - `../java/data/exercises/ex-012-teach-it-your-language-gemini`
+- EX-12 added to all four workflows after `EX-10`
+
+Important EX-12 retunes:
+
+- removed the participant-visible implementation note from the exercise YAMLs
+- removed the open alert from `CUS022` so suspicious comes only from
+  fraud-flagged transactions
+- narrowed the exercise framing so:
+  - primary failure pair:
+    - `CUS022 suspicious`
+    - `CUS024 anomalous`
+  - contrast cases:
+    - `CUS023 concerning`
+    - `CUS025 high risk`
+- updated `banking_domain_v1.yaml` so `anomalous`
+  - prefers `get_full_picture`
+  - explicitly allows baseline comparison using prior returned activity
+  - treats materially new categories/channels/concentration as anomalous
+    even without fraud flags
+
+Final live outcome:
+
+- base state:
+  - `CUS022 suspicious` failed cleanly
+  - `CUS024 anomalous` failed cleanly
+  - `CUS023 concerning` and `CUS025 high risk` broad-routed but still landed
+    on the right answer, so they were kept as contrast cases
+- fixed state (`opt_a`):
+  - `CUS022 suspicious` routed and answered correctly
+  - `CUS024 anomalous` routed and answered correctly after the final ontology
+    retune
+  - `CUS023 concerning` narrowed to `get_customer_profile_and_alerts`
+  - `CUS025 high risk` narrowed to `get_customer_profile`
+
+Conclusion:
+
+- EX-12 is ready
+
+### EX-13 review and validation result
+
+Reviewed spec:
+
+- `C:\Users\upadh\git\hackathon\mcp_specs\ThePoisonedExample\EX-13-THE-POISONED-EXAMPLE.md`
+
+Decision:
+
+- do **not** build the full `EX-13` scaffold yet
+- only minimal validation assets were created
+
+Validation assets added:
+
+- `runtime_assets/tool_descriptions/fraud_anchored_v1.yaml`
+- `runtime_assets/tool_descriptions/balanced_examples_v1.yaml`
+- `runtime_assets/tool_descriptions/more_fraud_examples_v1.yaml`
+- `runtime_assets/ontologies/banking_domain_v2_extended.yaml`
+- `runtime_assets/system_prompts/routing_override_v1.yaml`
+
+Validation target:
+
+- `CUS010`
+  - open non-fraud `ACCOUNT` alert
+  - no fraud-flagged transactions
+
+Live validation performed on:
+
+- base poisoned state:
+  - `exercise_id: ex-poisoned-example-gemini`
+  - `tool_descriptions: fraud_anchored_v1`
+  - `ontology: banking_domain_v1`
+- stronger trap state:
+  - same, but `option_applied: opt_b`
+  - `tool_descriptions: more_fraud_examples_v1`
+
+Prompt tested:
+
+- `What is CUS010's current compliance status and should I be concerned?`
+
+Observed result in both states:
+
+- `selected_tool: get_customer_profile_and_alerts`
+- `tool_reasoning` stayed generic:
+  - profile details + warning signals
+- no visible fraud-pattern anchoring
+- no forensic moment in Details panel
+
+Conclusion:
+
+- `GATE 1` failed
+- `EX-13` should be parked for now
+- do **not** build the full exercise from the current spec as-is
+
+The concept may be revisited later, but in the current stack the poisoned
+example effect was not surfacing in a way strong enough to support the lesson.
+
+### Overlay state note
+
+During EX-13 validation, `.workshop/overlay_config.json` was temporarily
+rewritten to:
+
+- `exercise_id: ex-poisoned-example-gemini`
+- then later `option_applied: opt_b`
+
+Before returning to normal workshop use, restore the overlay to a real exercise
+state or let the participant flow rewrite it.
+
+### Gitignore change
+
+Added `.workshop/` to `.gitignore` so local runtime files stop showing as
+untracked in `git status`.
+
+### Pre-hackday secrecy decision
+
+Discussed adding an unlock key / unlock token to `workshop.properties` so
+participants cannot browse exercises before the hack day.
+
+Final recommendation:
+
+- do **not** rely on app-side locking as the primary protection if
+  participants already have the real exercise YAML files locally
+- that only stops casual UI peeking, not direct file inspection
+
+Preferred approach:
+
+- create a structurally valid dummy `java/data/` payload for advance setup
+- distribute the real `java/data/` payload only at the hack day
+
+This solves the real secrecy problem more cleanly than trying to protect
+already-distributed exercise files with UI or API gating.
