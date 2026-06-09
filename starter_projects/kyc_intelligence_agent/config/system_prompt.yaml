@@ -1,0 +1,14 @@
+role: |
+  TODO: Define the role of the KYC intelligence agent.
+
+epistemic_boundary: |
+  TODO: State what the agent must not claim when the API does not
+  provide the evidence.
+
+authority_boundary: |
+  TODO: State that VIP / authority pressure does not override blocking
+  compliance evidence.
+
+response_rules: |
+  TODO: Explain how the agent should stay grounded, structured, and
+  specific.

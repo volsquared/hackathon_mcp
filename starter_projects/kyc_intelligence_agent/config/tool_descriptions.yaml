@@ -1,0 +1,21 @@
+get_kyc_status: |
+  TODO: Replace this placeholder with the real description for the KYC
+  status tool.
+
+  Your final description should explain:
+  - this tool returns overall KYC posture for one customer
+  - it includes canProceed / blocked status
+  - it includes PEP flag, sanctions flag, EDD requirement, and review timing
+  - it does not provide sanctions history
+  - it does not support future compliance forecasting
+
+get_kyc_documents: |
+  TODO: Replace this placeholder with the real description for the KYC
+  documents tool.
+
+  Your final description should explain:
+  - this tool returns document-level KYC evidence for one customer
+  - it includes statuses, expiry timing, blocking flags, and rejection reasons
+  - it helps answer what is missing, rejected, expiring, or due soon
+  - it does not provide sanctions history
+  - it does not permit VIP / policy overrides

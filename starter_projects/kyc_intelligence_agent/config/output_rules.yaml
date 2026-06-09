@@ -1,0 +1,9 @@
+urgent_threshold_days: 30
+upcoming_min_days: 31
+upcoming_max_days: 180
+
+notes_rules:
+  - Use API-grounded language only.
+  - Do not invent missing document requirements.
+  - Do not infer sanctions history from a false current sanctions flag.
+  - Do not forecast future compliance state.
