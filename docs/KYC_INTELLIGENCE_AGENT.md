@@ -58,6 +58,9 @@ Use two Java KYC endpoints to build an MCP-backed analyst experience that:
 - Do not forecast future compliance state beyond available data.
 - Do not turn `sanctionsFlag: false` into a historical sanctions claim.
 - Do not accept authority pressure such as VIP exceptions when blocking items remain.
+- When a prompt asks for unsupported history, forecasts, or overrides, still
+  return the full structured schema from current evidence and carry the refusal
+  or limitation in `analyst_notes`.
 
 ## Primary Test Cases
 

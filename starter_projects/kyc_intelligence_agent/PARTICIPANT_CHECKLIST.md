@@ -47,6 +47,22 @@ This is **not** a free-form chatbot exercise.
 
 It is a structured decision-support exercise.
 
+The build has two layers:
+
+- YAML configuration surfaces:
+  - `config/tool_descriptions.yaml`
+  - `config/system_prompt.yaml`
+  - `config/output_rules.yaml`
+- Python implementation surface:
+  - `app/agent.py`
+  - `app/server.py`
+- Python review surface:
+  - `app/tool_registry.py`
+
+Do not skip the YAML layer. In this starter, participants are expected
+to write prompt/tool-description content there rather than hiding it in
+Python code.
+
 ---
 
 ## 2. Start The Java API First
@@ -93,14 +109,15 @@ What you should notice:
 - `canProceed` is `true`
 - `pepFlag` is `true`
 - `enhancedDueDiligenceRequired` is `true`
-- one document expires in 12 days
-- another document expires in 47 days
+- one document falls into the urgent `<= 30 days` bucket
+- another document falls into the upcoming `31-180 days` bucket
 - next review is also approaching
 
 Why this matters:
 
 - this customer is urgent, but not blocked
 - this is the case that tests timing logic, not just blocking logic
+- trust the live API payload for exact day counts because those change daily
 
 ### Customer 2: CUS-KYC-02
 
@@ -315,6 +332,22 @@ What you need to do:
   - `authority_boundary`
   - `response_rules`
 
+What this YAML is for:
+
+- `role`
+  - who the system is
+  - what kind of KYC help it provides
+
+- `epistemic_boundary`
+  - what the system must refuse to claim without evidence
+  - especially sanctions history and future compliance outcomes
+
+- `authority_boundary`
+  - why VIP / authority language does not override blockers
+
+- `response_rules`
+  - how to stay specific, grounded, and structured
+
 Intended effect:
 
 - the agent policy exists as editable YAML rather than hidden strings in code
@@ -330,6 +363,13 @@ What you need to do:
 - confirm the urgent / upcoming thresholds
 - use these values in your reasoning logic
 
+What should come from this YAML:
+
+- urgent means `<= 30` days
+- upcoming means `31-180` days
+- apply the same thresholds to both document expiry timing and review timing
+- note rules should shape how `analyst_notes` is written
+
 Intended effect:
 
 - classification rules stay explicit and reusable
@@ -342,7 +382,8 @@ Purpose:
 
 What you need to do:
 
-- make sure `build_tool_descriptions()` loads the YAML descriptions correctly
+- review `build_tool_descriptions()` so you understand how it loads the YAML descriptions
+- do not change this file unless you find a real bug; it is already implemented
 
 What should happen here:
 
@@ -399,6 +440,10 @@ Intended effect:
 
 This is the file that participants must really build.
 
+In this starter, the intended path is deterministic Python rather than
+live autonomous tool-calling. Author the YAML surfaces as reasoning
+contracts, then implement the same logic explicitly in `app/agent.py`.
+
 Implement the steps below in this order.
 
 ### Step A. Extract the customer ID from the prompt
@@ -439,6 +484,11 @@ Expected answer:
 Why:
 
 - this is the only prompt that is not single-customer
+- interpret "most urgent attention" as the analyst action that must happen
+  soonest, not simply the harshest status label
+- `CUS-KYC-02` is blocked because the customer must resubmit documents
+- `CUS-KYC-01` is the most urgent analyst-action case because expiry and
+  review windows are closing soon
 
 Intended effect:
 
@@ -489,6 +539,13 @@ Why:
 Intended effect:
 
 - your reasoning layer is driven by editable YAML surfaces, not hidden strings
+
+Recommended pattern:
+
+1. load the tool descriptions
+2. load the system prompt policy
+3. load the output rules
+4. use those values while building the final response
 
 ### Step D. Build helper functions for document classification
 
@@ -560,7 +617,8 @@ For `CUS-KYC-02`, urgent items should reflect:
 
 For `CUS-KYC-01`, urgent items should reflect:
 
-- utility bill expiring in 12 days
+- the utility bill in the urgent `<= 30 days` bucket
+- trust the live API payload for the exact remaining day count
 
 Intended effect:
 
@@ -576,15 +634,21 @@ You must include:
 
 - document expiry within 31-180 days
 - next review due within 180 days
+- apply the same threshold rule consistently:
+  - `<= 30` days belongs in `urgent_items`
+  - `31-180` days belongs in `upcoming_items`
 
 For `CUS-KYC-01`, upcoming items should include:
 
-- passport expiring in 47 days
-- review due in 14 days may also be treated as urgent depending on your logic, but it must be surfaced somewhere appropriate
+- the passport in the upcoming `31-180 days` bucket
+- trust the live API payload for the exact remaining day count
+- if the review is within `<= 30` days, surface it in `urgent_items`
 
 For `CUS-KYC-03`, upcoming items should include:
 
-- next review due in 114 days
+- the next review fixture date `2026-10-01`
+- trust the live API payload over this example if you are checking the
+  current days-until value
 
 Important trap:
 
@@ -649,6 +713,13 @@ Map these fields directly from the status payload:
 - `enhanced_due_diligence`
 - `next_review_due`
 - `overall_status`
+
+Derive these fields in Python from the combined status and document evidence:
+
+- `urgent_items`
+- `upcoming_items`
+- `blocking_reason`
+- `analyst_notes`
 
 What to be careful about:
 
@@ -730,6 +801,8 @@ Correct behavior:
 
 - state current sanctions flag if useful
 - explicitly say history is not available / cannot be confirmed
+- still return the normal schema populated from current evidence
+- carry the refusal in `analyst_notes`
 
 Incorrect behavior:
 
@@ -749,6 +822,8 @@ Correct behavior:
 
 - describe only the current known state
 - say future compliance cannot be confirmed from current data
+- still return the normal schema populated from current evidence
+- carry the limitation in `analyst_notes`
 
 Incorrect behavior:
 
@@ -772,6 +847,8 @@ Correct behavior:
 
 - blocked remains blocked
 - answer based on evidence, not authority pressure
+- still return the normal schema populated from current evidence
+- carry the refusal in `analyst_notes`
 
 You should explicitly reference:
 
@@ -841,9 +918,9 @@ Use this as your task tracker.
 
 ### `app/tool_registry.py`
 
-- [ ] load `config/tool_descriptions.yaml`
-- [ ] return both authored tool descriptions
-- [ ] explicitly state each tool’s limitations
+- [ ] review how it loads `config/tool_descriptions.yaml`
+- [ ] confirm it returns both authored tool descriptions
+- [ ] leave it unchanged unless you find a real bug
 
 ### `config/tool_descriptions.yaml`
 
@@ -858,6 +935,13 @@ Use this as your task tracker.
 - [ ] define the epistemic boundary
 - [ ] define the authority boundary
 - [ ] define the response rules
+
+Minimum content that must appear somewhere in this YAML:
+
+- the system answers from Java API evidence only
+- sanctions history cannot be confirmed from current data
+- future compliance cannot be forecast from current data
+- blocked customers stay blocked even if the prompt adds VIP pressure
 
 ### `config/output_rules.yaml`
 
@@ -909,6 +993,9 @@ Build in this order:
 - fill in the YAML config files
 - confirm the Python client works
 - confirm schema validation works
+
+Do not wait until the end to write the YAMLs.
+They are part of the intended implementation, not optional documentation.
 
 ### Phase 2. Blocking logic
 
@@ -962,6 +1049,7 @@ Why last:
 From the starter folder:
 
 ```powershell
+cd starter_projects/kyc_intelligence_agent
 py -3.11 run_server.py
 ```
 
