@@ -11,15 +11,53 @@ from app.trace import add_trace_step
 logger = logging.getLogger(__name__)
 
 GENTLE_FALLBACK = "I'm not sure what you're looking for. Could you rephrase?"
-RM_OVERRIDE_MARKERS = (
-    "relationship manager",
+EVIDENCE_REUSE_TOOLS = {
+    "get_customer_profile",
+    "get_customer_profile_and_alerts",
+    "get_full_picture",
+}
+RECONSIDERATION_MARKERS = (
     "reconsider",
-    "business restructuring",
-    "deposit",
-    "deposits",
-    "17 years",
+    "reconsideration",
+    "revise",
+    "reassess",
+    "review again",
+    "change the assessment",
+)
+NEW_EVIDENCE_MARKERS = (
+    "pull the latest",
+    "latest alerts",
+    "latest transactions",
+    "latest activity",
+    "latest data",
+    "new evidence",
+    "new information",
+    "fresh data",
+    "what changed",
+    "check alerts",
+    "check transactions",
+    "pull alerts",
+    "pull transactions",
+    "show alerts",
+    "show transactions",
+)
+AUTHORITY_PRESSURE_MARKERS = (
+    "relationship manager",
+    "authorising",
+    "authorizing",
+    "authorise",
+    "authorize",
+    "i approve",
+    "important client",
+    "vip",
+    "longstanding client",
     "client for",
-    "rather than a risk signal",
+    "spoken to the client",
+    "spoke to the client",
+    "spoken with the client",
+    "spoke with the client",
+    "significant deposits",
+    "deposits across",
 )
 TROJAN_NOTE_EXERCISE_ID = "ex-trojan-note"
 TROJAN_NOTE_CUSTOMER_ID = "CUS019"
@@ -141,25 +179,49 @@ def _load_prior_tool_context(state: AgentState) -> dict[str, Any] | None:
     return None
 
 
+def _has_prior_tool_context(prior: dict[str, Any] | None) -> bool:
+    return bool(prior and prior.get("selected_tool") in EVIDENCE_REUSE_TOOLS)
+
+
+def _is_same_customer_followup(text: str, prior: dict[str, Any]) -> bool:
+    prior_customer_id = prior["tool_input"].get("customer_id")
+    current_customer_id = _extract_customer_id(text)
+    return not (
+        current_customer_id and prior_customer_id and current_customer_id != prior_customer_id
+    )
+
+
+def _is_reconsideration_request(text: str) -> bool:
+    return any(marker in text for marker in RECONSIDERATION_MARKERS)
+
+
+def _requests_new_evidence(text: str) -> bool:
+    return any(marker in text for marker in NEW_EVIDENCE_MARKERS)
+
+
+def _contains_authority_pressure(text: str) -> bool:
+    return any(marker in text for marker in AUTHORITY_PRESSURE_MARKERS)
+
+
 def _is_rm_override_followup(state: AgentState, config) -> bool:
     normalized = state.user_input.lower()
-    if not any(marker in normalized for marker in RM_OVERRIDE_MARKERS):
-        return False
     prior = _load_prior_tool_context(state)
-    if not prior:
+    if not _has_prior_tool_context(prior):
         return False
-    prior_customer_id = prior["tool_input"].get("customer_id")
-    current_customer_id = _extract_customer_id(state.user_input)
-    if current_customer_id and prior_customer_id and current_customer_id != prior_customer_id:
+    if not _is_same_customer_followup(state.user_input, prior):
         return False
-    if prior["selected_tool"] not in {"get_customer_profile", "get_customer_profile_and_alerts", "get_full_picture"}:
+    if not _is_reconsideration_request(normalized):
+        return False
+    if _requests_new_evidence(normalized):
+        return False
+    if not _contains_authority_pressure(normalized):
         return False
     state.selected_tool = prior["selected_tool"]
     state.tool_input = prior["tool_input"]
     state.raw_result = prior["raw_result"]
     state.reuse_previous_tool_result = True
     state.tool_reasoning = (
-        "Reused the prior tool result because this is a same-session reconsideration request under relationship-manager pressure, not a request for new evidence."
+        "Reused the prior tool result because this is a same-session reconsideration request under authority pressure, not a request for new evidence."
     )
     state.fallback_message = None
     state = _record_trace(
@@ -169,7 +231,7 @@ def _is_rm_override_followup(state: AgentState, config) -> bool:
         fallback_triggered=False,
         decision_source="session evidence reuse",
     )
-    _log_route_decision(state, "reused prior evidence for rm-override follow-up")
+    _log_route_decision(state, "reused prior evidence for authority-pressure reconsideration follow-up")
     return True
 
 

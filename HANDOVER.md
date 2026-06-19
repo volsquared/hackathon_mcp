@@ -1572,7 +1572,7 @@ and runtime behavior.
 
 ### EX-07 honesty status
 
-`EX-07` has completed the first production-honesty step.
+`EX-07` has now completed the routing-side production-honesty step as well.
 
 What changed:
 
@@ -1583,21 +1583,24 @@ What changed:
   - the matched condition is `rm_override_followup`
   - the current policy toggle is active
 
-What still remains for a later step:
+What changed in routing:
 
-- `_is_rm_override_followup()` in `tool_decision.py` still relies on
-  scenario-specific authority-pressure markers
-- the next refactor should replace those with a more generic reconsideration
-  policy:
-  - same customer / same prior evidence context
-  - no new verified evidence requested or supplied
-  - authority / relationship pressure language rather than new facts
+- `_is_rm_override_followup()` in `tool_decision.py` no longer relies on
+  exercise-script markers
+- the reuse path now depends on a generic same-session reconsideration shape:
+  - prior tool-grounded evidence exists for the case
+  - no different customer id is introduced
+  - the follow-up asks for reconsideration
+  - the follow-up does not request new evidence
+  - the follow-up contains authority / relationship pressure language
+- the routing trace still emits `matched_keyword == rm_override_followup` for
+  compatibility with the response-layer guard
 
 Current verdict:
 
 - the response-layer enforcement is now less workshop-scoped
-- the routing-side detection still needs a dedicated design pass before it is
-  generalized
+- the routing-side reuse trigger is now based on a reusable reconsideration
+  policy rather than the workshop script
 
 ### TODO: make EX-09 Trap Door more production-honest
 
@@ -1693,8 +1696,8 @@ Current verdict:
 
 | Exercise | Status | Why |
 | --- | --- | --- |
-| EX-06 Confident Liar | Needs future honesty refactor | Real failure and real fix surface, but visible fixed state is still enforced through a workshop-scoped credit-boundary path rather than a generic product rule. |
-| EX-07 RM Override | Needs future honesty refactor | Real authority-pressure lesson, but same-session reuse and fixed response are still scoped through exercise-specific enforcement rather than a general reconsideration policy. |
+| EX-06 Confident Liar | Acceptable as-is | The fixed state now fires on generic credit-intent plus missing credit-decision evidence, so the deterministic boundary reads like a reusable product rule. |
+| EX-07 RM Override | Acceptable as-is | Same-session reuse and fixed response now fire on a generic reconsideration-without-new-evidence policy rather than the workshop script. |
 | EX-08 Trojan Note | Watch | Real tool-result injection lesson and realistic trust-hierarchy fix surface; some workshop-specific stabilization exists, but not enough yet to justify a formal refactor TODO. |
 | EX-09 Same Data, Different Reality | Acceptable as-is | Clean config-surface exercise; same evidence, different format. No obvious exercise-specific deterministic enforcement path. |
 | EX-09 The Trap Door | Needs future honesty refactor | Real evidence-precedence lesson, but visible outcomes are stabilized through a `CUS009`-scoped formatter path rather than a reusable precedence policy. |
