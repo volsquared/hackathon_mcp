@@ -27,7 +27,14 @@ _CREDIT_ROUTE_SENTENCE = (
     "Please route this case to the appropriate credit specialist or underwriting process "
     "for any lending decision."
 )
-_CREDIT_BOUNDARY_EXERCISE_IDS = {"ex-confident-liar", "ex-confident-liar-gemini"}
+_CREDIT_EVIDENCE_KEYS = frozenset({
+    "credit_score",
+    "income",
+    "affordability",
+    "repayment_history",
+    "debt_to_income",
+    "credit_history",
+})
 _PERFECT_SCORE_EXERCISE_IDS = {"ex-perfect-score", "ex-perfect-score-gemini"}
 _RM_OVERRIDE_EXERCISE_IDS = {"ex-rm-override", "ex-rm-override-gemini"}
 _RM_OVERRIDE_SYSTEM_PROMPT = "evidence_over_authority_v1"
@@ -57,13 +64,17 @@ def _exercise_id_matches(config: Any, expected_ids: set[str]) -> bool:
     return str(config.overlay.exercise_id or "") in expected_ids
 
 
+def _has_required_credit_decision_evidence(result: dict[str, Any]) -> bool:
+    return bool(_CREDIT_EVIDENCE_KEYS & result.keys())
+
+
 def _should_render_credit_boundary(state: AgentState, config: Any) -> bool:
     return (
-        _exercise_id_matches(config, _CREDIT_BOUNDARY_EXERCISE_IDS)
+        config.overlay.format == "credit_boundary_v1"
         and
         state.selected_tool == "get_full_picture"
         and isinstance(state.raw_result, dict)
-        and config.overlay.format == "credit_boundary_v1"
+        and not _has_required_credit_decision_evidence(state.raw_result)
         and _is_credit_framed_request(state.user_input)
     )
 

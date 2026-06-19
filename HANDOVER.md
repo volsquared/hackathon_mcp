@@ -736,9 +736,9 @@ What changed:
     rule can hijack EX-09
 - tightened the deterministic EX-06 credit-boundary formatter
   - it now requires:
-    - `exercise_id == ex-confident-liar`
     - `format == credit_boundary_v1`
     - `selected_tool == get_full_picture`
+    - no credit-decision evidence fields in the returned payload
     - credit-framed user input
   - this was done to reduce leakage into later stages such as EX-07
 - sharpened `runtime_assets/tool_descriptions/ambiguous_v1.yaml`
@@ -1311,3 +1311,388 @@ Preferred approach:
 
 This solves the real secrecy problem more cleanly than trying to protect
 already-distributed exercise files with UI or API gating.
+
+## 2026-06-17 update
+
+### EX-13 KYC capstone docs polish
+
+No runtime or starter-code logic was changed today. This was a
+participant-guidance cleanup pass for the KYC capstone only.
+
+Files updated:
+
+- `mcp/docs/KYC_INTELLIGENCE_AGENT.md`
+- `mcp/starter_projects/kyc_intelligence_agent/README.md`
+- `mcp/starter_projects/kyc_intelligence_agent/PARTICIPANT_CHECKLIST.md`
+- `java/data/exercises/ex-013-kyc-intelligence-agent/exercise.yaml`
+- `java/data/exercises/ex-013-kyc-intelligence-agent-gemini/exercise.yaml`
+
+### Why this was needed
+
+The KYC exercise wording had a few real participant traps:
+
+- it still implied teams should wire a live LLM call even though the
+  starter is designed to be completed deterministically in Python
+- `tool_registry.py` was described inconsistently in different places,
+  sometimes as implementation work even though it is already done
+- the cross-customer urgency prompt could be read naturally as
+  `CUS-KYC-02` because it is `BLOCKED`, which would fail the harness
+- the refusal pattern for sanctions-history / forecast / VIP-override
+  prompts was not explicit enough for harness success
+- several checklist day counts were stale / time-relative and could drift
+  from the live API output
+
+### Final documentation clarifications now in place
+
+#### Deterministic vs LLM
+
+The exercise now states explicitly that:
+
+- a deterministic Python implementation is the intended path
+- YAML files are still authored first as reasoning contracts
+- a live LLM call is optional and not required for the harness
+
+This was added to the starter README, participant checklist, and both
+exercise YAMLs.
+
+#### `tool_registry.py` status
+
+The docs now consistently treat:
+
+- `app/agent.py` as the main implementation target
+- `app/tool_registry.py` as review-only unless a real bug is found
+
+This was corrected in:
+
+- README implementation/review split
+- checklist file-by-file guidance
+- checklist task-tracker section
+- checklist Section 1 build-layer list
+- both exercise YAML `post_apply_guidance` step 4 entries
+
+#### Cross-customer urgency rubric
+
+The docs now explain the intended rule for:
+
+- `Which of the three test customers needs the most urgent attention?`
+
+Important wording now reflected:
+
+- interpret urgency as the analyst action that must happen soonest,
+  not simply the harshest status label
+- `CUS-KYC-02` is customer-action blocked
+- `CUS-KYC-01` is the most urgent analyst-action case because expiry /
+  review windows are closing soon
+
+This matters because otherwise many teams will naturally choose
+`CUS-KYC-02` and fail harness case 06.
+
+#### Refusal pattern required by the harness
+
+The docs now state explicitly that for unsupported prompts:
+
+- still return the full schema from current evidence
+- carry the refusal / limitation in `analyst_notes`
+
+This was added to:
+
+- `docs/KYC_INTELLIGENCE_AGENT.md`
+- checklist Steps M and N
+- both exercise YAML guidance blocks
+
+This is important for:
+
+- sanctions-history prompts
+- future-compliance forecasting prompts
+- VIP / authority override prompts
+
+#### Timing-language cleanup
+
+Checklist wording was updated so:
+
+- urgent means `<= 30` days
+- upcoming means `31-180` days
+- the same threshold rule applies to review timing as well as document expiry
+- absolute fixture date `2026-10-01` is used for the `CUS-KYC-03` review example
+- participants are told to trust the live API payload for exact remaining day counts
+
+This avoids drift from time-relative examples like `114 days`.
+
+#### Run instructions
+
+Starter run instructions now explicitly include changing into:
+
+- `starter_projects/kyc_intelligence_agent`
+
+before running:
+
+- `py -3.11 run_server.py`
+
+This avoids the import-path confusion participants could hit from repo root.
+
+### Important scope note
+
+Today's changes were docs-only.
+
+- no KYC starter Python logic changed
+- no Java fixture or endpoint behavior changed
+- no harness behavior changed
+
+If someone later audits KYC implementation issues, do not assume any runtime
+behavior changed on 2026-06-17; only the participant guidance did.
+
+## 2026-06-19 update
+
+### Exercise snippet policy clarified during dry-run prep
+
+We started ratifying the participant-visible code snippets against the real
+runtime code, beginning with:
+
+- `../java/data/exercises/ex-002-system-is-blind`
+
+Important rule now established for future exercise cleanup:
+
+- each recognition-mode option should show two snippet layers where useful:
+  - `Conceptual diff for recognition`
+  - `Actual runtime location in ...`
+
+Meaning:
+
+- the conceptual diff is the simplified developer-patch story participants use
+  to recognise the correct fix
+- the runtime snippet shows where the equivalent behaviour actually lives in the
+  current workshop codebase
+- do not pretend overlays rewrite Python source files on disk at apply time
+- exercise text should say this explicitly when the visible diff is conceptual
+
+Why this was needed:
+
+- several later workshop fixes no longer map 1:1 to a literal patch shown in
+  the UI
+- overlays often select a prebuilt runtime path rather than editing Python code
+- some fixed states are enforced in application logic, not only in prompt or
+  overlay config
+
+### EX-02 status
+
+Updated files:
+
+- `../java/data/exercises/ex-002-system-is-blind/exercise.yaml`
+- `../java/data/exercises/ex-002-system-is-blind/diffs/opt_a.diff`
+- `../java/data/exercises/ex-002-system-is-blind/diffs/opt_c.diff`
+- `../java/data/exercises/ex-002-system-is-blind/diffs/opt_d.diff`
+- `../java/data/exercises/ex-002-system-is-blind/snippets/opt_a_runtime_shape.py`
+- `../java/data/exercises/ex-002-system-is-blind/snippets/opt_b_runtime_shape.py`
+- `../java/data/exercises/ex-002-system-is-blind/snippets/opt_c_runtime_shape.py`
+- `../java/data/exercises/ex-002-system-is-blind/snippets/opt_d_runtime_shape.py`
+
+What changed:
+
+- `opt_a` conceptual diff was simplified back to the clean recognition story:
+  - `if customer_id and "profile" in text`
+  - to `if customer_id and ("profile" in text or "risk" in text)`
+- exercise copy now explains:
+  - conceptual diffs are for recognising the right fix
+  - applying an option switches runtime behaviour through overlays
+  - the second snippet shows the actual current code shape
+- `opt_b` conceptual diff was left unchanged
+- `opt_a` / `opt_b` / `opt_c` / `opt_d` now each include a second snippet
+  showing the real runtime location in `app/agent/nodes/tool_decision.py`
+
+Guidance for future exercises:
+
+- when the real fix lives in `response_formatter.py`, label the runtime snippet
+  accordingly
+- when the real fix spans multiple files, show the smallest honest runtime
+  snippet set needed to explain it
+- keep participant-facing conceptual diffs simple even when the real runtime
+  implementation has been abstracted behind flags like
+  `include_risk_keyword=True`
+
+### New review rule for all exercises
+
+Going forward, every exercise should be checked for this question explicitly:
+
+- is the workshop showing a real product-style failure and a real product-style
+  fix
+- or is it using workshop-only hardcoding that exists only to force the lesson
+
+This is not the same as asking whether the fix is prompt-only.
+
+Honest standard:
+
+- prompt/config changes are fine
+- application-level enforcement is fine
+- deterministic boundary rendering is fine
+- feature-flag or overlay-activated policy paths are fine
+
+But the mechanism should still resemble how a real system would implement the
+boundary in production.
+
+Preferred real-world pattern:
+
+- detect the request type generically
+- identify what evidence classes are required for that conclusion
+- check whether the retrieved evidence is sufficient
+- block unsupported conclusions in the response layer
+- route to the correct human/process path
+
+### TODO: make EX-06 more production-honest
+
+`EX-06` currently demonstrates a real failure and a real enforced fix, but the
+fixed state is still scoped through workshop-specific conditions.
+
+Future improvement target:
+
+- refactor the credit epistemic-boundary enforcement into a more generic policy
+  path
+- the workshop overlay should toggle that policy on/off for the lesson
+- the enforcement itself should read like a real product rule, not an
+  exercise-specific branch
+
+Desired direction:
+
+- generic credit-intent detection
+- generic required-evidence rule for lending conclusions
+- generic bounded refusal when underwriting evidence is missing
+- generic route-to-process output
+
+Apply this same honesty check to every later exercise while ratifying snippet
+and runtime behavior.
+
+### TODO: make EX-07 more production-honest
+
+`EX-07` is mostly honest already:
+
+- the base failure is real
+- the same-session reuse mechanism is realistic
+- authority pressure without new evidence is a real production failure mode
+- application-level enforcement for the fixed state is a realistic enterprise
+  fix category
+
+But the current implementation is still too workshop-scoped.
+
+Future improvement target:
+
+- generalize the authority-resistance logic into a reusable product policy path
+- do not scope the enforcement primarily through exercise-specific conditions
+- make the rule read like a real product control:
+  - if a follow-up asks to revise a tool-derived assessment
+  - and no new verified evidence has arrived
+  - authority claims, relationship history, and deposit value cannot change the verdict
+  - only new verified evidence can justify reassessment
+
+Desired direction:
+
+- generic same-session reconsideration detection
+- generic evidence-reuse / no-new-evidence policy check
+- generic authority-resistance enforcement
+- generic route-to-escalation output when social pressure arrives without new evidence
+
+The workshop overlay should ideally toggle that policy for the lesson, while
+the policy itself should look like a real product rule rather than a
+workshop-only branch.
+
+### TODO: make EX-09 Trap Door more production-honest
+
+`EX-09 The Trap Door` demonstrates a real failure category:
+
+- both evidence sources are valid and correctly retrieved
+- the failure is not trust, injection, or missing data
+- the failure is evidence precedence between a stale profile signal and recent
+  fraud evidence
+
+That part is realistic. The less ideal part is the current fixed-state surface:
+
+- `response_formatter.py` uses an exercise-scoped trap-door renderer
+- visible outcomes are stabilized through a `CUS009`-specific response path
+- option variants (`opt_a`, `opt_c`, `opt_d`) are surfaced through that
+  exercise-specific formatter logic
+
+Future improvement target:
+
+- move evidence precedence into a reusable product policy path
+- make the policy generic for conflicting trusted signals, not specific to one
+  seeded customer payload
+- let the workshop overlay toggle the precedence rule used for the lesson
+
+Desired direction:
+
+- generic contradiction detection across trusted evidence sources
+- generic lagging-vs-leading evidence precedence rules
+- generic contradiction surfacing when presentation is the only thing that
+  changes
+- generic resolution rule when the product should favor more current evidence
+
+The goal is for the lesson to keep the same concept while the implementation
+reads like a real product control rather than an exercise-scoped formatter
+branch.
+
+### TODO: make EX-11 Perfect Score more production-honest
+
+`EX-11 Perfect Score` demonstrates a real failure category:
+
+- eval gaming / Goodhart-style optimisation against benchmark phrasing
+- paraphrase failure despite high benchmark scores
+- confusion between verification and optimisation
+
+That lesson is realistic and important. The less ideal part is the current
+fixed-state runtime shape:
+
+- the eval runner is real and external, which is good
+- but the visible fixed-state paraphrase behaviour is also stabilized through
+  `_should_render_perfect_score_credit_boundary(...)`
+- that means the workshop build pairs the principled prompt fix with an
+  exercise-scoped deterministic boundary path
+
+Future improvement target:
+
+- keep the eval-runner architecture as-is
+- make paraphrase-robust behaviour emerge from the general product prompt /
+  policy stack rather than a Perfect Score-specific formatter guard
+- let the workshop overlay toggle the principled prompt and expanded eval
+  coverage, not a special exercise-only boundary renderer
+
+Desired direction:
+
+- generic paraphrase-robust epistemic-boundary handling
+- generic credit-intent detection that is not benchmark-phrase-specific
+- broader eval coverage used only to verify the fix, not to force the visible outcome
+
+The lesson should stay the same, but the runtime should read more like a real
+product recovering from eval gaming rather than an exercise-specific stabilized
+response path.
+
+### EX-12 honesty note
+
+`EX-12 Teach It Your Language` is currently one of the more production-honest
+exercises:
+
+- the failure category is real: undefined domain vocabulary causes inconsistent
+  routing and interpretation
+- the fix surface is real: ontology is loaded into the prompt stack through
+  `load_ontology_contract(...)`
+- the semantic router then consumes that vocabulary through the normal routing path
+- there is no obvious exercise-specific deterministic formatter branch forcing
+  the visible fixed answer
+
+Current verdict:
+
+- no production-honesty TODO is required right now
+- keep using `EX-12` as a model for a clean config-surface lesson
+- if it changes later, reassess whether ontology remains the true runtime fix
+  rather than just a teaching artifact
+
+### Honesty status summary
+
+| Exercise | Status | Why |
+| --- | --- | --- |
+| EX-06 Confident Liar | Needs future honesty refactor | Real failure and real fix surface, but visible fixed state is still enforced through a workshop-scoped credit-boundary path rather than a generic product rule. |
+| EX-07 RM Override | Needs future honesty refactor | Real authority-pressure lesson, but same-session reuse and fixed response are still scoped through exercise-specific enforcement rather than a general reconsideration policy. |
+| EX-08 Trojan Note | Watch | Real tool-result injection lesson and realistic trust-hierarchy fix surface; some workshop-specific stabilization exists, but not enough yet to justify a formal refactor TODO. |
+| EX-09 Same Data, Different Reality | Acceptable as-is | Clean config-surface exercise; same evidence, different format. No obvious exercise-specific deterministic enforcement path. |
+| EX-09 The Trap Door | Needs future honesty refactor | Real evidence-precedence lesson, but visible outcomes are stabilized through a `CUS009`-scoped formatter path rather than a reusable precedence policy. |
+| EX-10 AI Needs Unit Tests Too | Acceptable as-is | Real eval-runner architecture, external verification layer, and no obvious exercise-specific forced answer path. |
+| EX-11 Perfect Score | Needs future honesty refactor | Real Goodhart / eval-gaming lesson, but paraphrase-safe visible behaviour is paired with a Perfect Score-specific deterministic boundary path. |
+| EX-12 Teach It Your Language | Acceptable as-is | Ontology is genuinely the runtime fix surface and is consumed through the normal semantic-routing stack. |
+| EX-13 KYC Intelligence Agent | Acceptable as-is | Manual capstone with no recognition-mode fix snippets; the build path and harness expectations are already stated explicitly. |
