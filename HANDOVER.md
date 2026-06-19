@@ -235,9 +235,11 @@ What this does:
   - decision source:
     - `session evidence reuse`
 
-This reuse path is scoped only to:
+This reuse path now depends on the same-session reconsideration shape:
 
-- `exercise_id == ex-rm-override`
+- reused prior evidence for the same case
+- `routing_mode == session_reuse`
+- `matched_keyword == rm_override_followup`
 
 ### Target customer changed
 
@@ -311,11 +313,12 @@ Therefore final workshop fixed state now uses deterministic enforcement in:
 
 Branch behavior:
 
-- only for `ex-rm-override`
 - only on same-session RM follow-up reuse path
 - only when fixed state is active via:
   - `option_applied == opt_a`
   - or `system_prompt == evidence_over_authority_v1`
+- in the current Step 1 refactor, the response guard no longer checks the
+  `EX-07` exercise id directly
 
 Rendered sections:
 
@@ -1537,61 +1540,64 @@ Preferred real-world pattern:
 - block unsupported conclusions in the response layer
 - route to the correct human/process path
 
-### TODO: make EX-06 more production-honest
+### EX-06 honesty status
 
-`EX-06` currently demonstrates a real failure and a real enforced fix, but the
-fixed state is still scoped through workshop-specific conditions.
+`EX-06` has now been moved to a more production-honest shape.
 
-Future improvement target:
+What changed:
 
-- refactor the credit epistemic-boundary enforcement into a more generic policy
-  path
-- the workshop overlay should toggle that policy on/off for the lesson
-- the enforcement itself should read like a real product rule, not an
-  exercise-specific branch
+- the credit boundary no longer fires because the runtime knows it is in the
+  Confident Liar exercise
+- the boundary now fires because the request is credit-framed while the
+  retrieved evidence package lacks credit-decision evidence fields
+- the active toggle remains `format: credit_boundary_v1`, but the reason the
+  policy activates is now evidence mismatch rather than exercise identity
 
-Desired direction:
+Current runtime meaning:
 
 - generic credit-intent detection
-- generic required-evidence rule for lending conclusions
-- generic bounded refusal when underwriting evidence is missing
-- generic route-to-process output
+- generic missing-evidence check for lending decisions
+- bounded refusal / route-to-process response when only profile, alert,
+  transaction, and spending evidence is available
+
+Result:
+
+- the lesson is still the same
+- the visible fixed response is still deterministic
+- but the enforcement now reads like a reusable product rule rather than an
+  exercise-scoped formatter branch
 
 Apply this same honesty check to every later exercise while ratifying snippet
 and runtime behavior.
 
-### TODO: make EX-07 more production-honest
+### EX-07 honesty status
 
-`EX-07` is mostly honest already:
+`EX-07` has completed the first production-honesty step.
 
-- the base failure is real
-- the same-session reuse mechanism is realistic
-- authority pressure without new evidence is a real production failure mode
-- application-level enforcement for the fixed state is a realistic enterprise
-  fix category
+What changed:
 
-But the current implementation is still too workshop-scoped.
+- the fixed response guard no longer depends on `EX-07` exercise ids
+- the deterministic authority-resistance response now fires because:
+  - prior tool-grounded evidence is being reused
+  - the routing trace marks the turn as `session_reuse`
+  - the matched condition is `rm_override_followup`
+  - the current policy toggle is active
 
-Future improvement target:
+What still remains for a later step:
 
-- generalize the authority-resistance logic into a reusable product policy path
-- do not scope the enforcement primarily through exercise-specific conditions
-- make the rule read like a real product control:
-  - if a follow-up asks to revise a tool-derived assessment
-  - and no new verified evidence has arrived
-  - authority claims, relationship history, and deposit value cannot change the verdict
-  - only new verified evidence can justify reassessment
+- `_is_rm_override_followup()` in `tool_decision.py` still relies on
+  scenario-specific authority-pressure markers
+- the next refactor should replace those with a more generic reconsideration
+  policy:
+  - same customer / same prior evidence context
+  - no new verified evidence requested or supplied
+  - authority / relationship pressure language rather than new facts
 
-Desired direction:
+Current verdict:
 
-- generic same-session reconsideration detection
-- generic evidence-reuse / no-new-evidence policy check
-- generic authority-resistance enforcement
-- generic route-to-escalation output when social pressure arrives without new evidence
-
-The workshop overlay should ideally toggle that policy for the lesson, while
-the policy itself should look like a real product rule rather than a
-workshop-only branch.
+- the response-layer enforcement is now less workshop-scoped
+- the routing-side detection still needs a dedicated design pass before it is
+  generalized
 
 ### TODO: make EX-09 Trap Door more production-honest
 

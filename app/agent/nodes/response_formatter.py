@@ -36,7 +36,6 @@ _CREDIT_EVIDENCE_KEYS = frozenset({
     "credit_history",
 })
 _PERFECT_SCORE_EXERCISE_IDS = {"ex-perfect-score", "ex-perfect-score-gemini"}
-_RM_OVERRIDE_EXERCISE_IDS = {"ex-rm-override", "ex-rm-override-gemini"}
 _RM_OVERRIDE_SYSTEM_PROMPT = "evidence_over_authority_v1"
 _TROJAN_NOTE_EXERCISE_IDS = {"ex-trojan-note", "ex-trojan-note-gemini"}
 _TROJAN_NOTE_SYSTEM_PROMPT = "trust_hierarchy_v1"
@@ -94,8 +93,7 @@ def _should_render_perfect_score_credit_boundary(state: AgentState, config: Any)
 
 def _should_render_rm_override_boundary(state: AgentState, config: Any) -> bool:
     return (
-        _exercise_id_matches(config, _RM_OVERRIDE_EXERCISE_IDS)
-        and isinstance(state.raw_result, dict)
+        isinstance(state.raw_result, dict)
         and state.reuse_previous_tool_result
         and state.routing_trace.get("routing_mode") == "session_reuse"
         and state.routing_trace.get("matched_keyword") == "rm_override_followup"
