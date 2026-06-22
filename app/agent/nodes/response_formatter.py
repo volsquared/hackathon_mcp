@@ -35,12 +35,12 @@ _CREDIT_EVIDENCE_KEYS = frozenset({
     "debt_to_income",
     "credit_history",
 })
-_PERFECT_SCORE_EXERCISE_IDS = {"ex-perfect-score", "ex-perfect-score-gemini"}
 _RM_OVERRIDE_SYSTEM_PROMPT = "evidence_over_authority_v1"
 _TROJAN_NOTE_EXERCISE_IDS = {"ex-trojan-note", "ex-trojan-note-gemini"}
 _TROJAN_NOTE_SYSTEM_PROMPT = "trust_hierarchy_v1"
 _TRAP_DOOR_EXERCISE_IDS = {"ex-trap-door", "ex-trap-door-gemini"}
 _TRAP_DOOR_CUSTOMER_ID = "CUS009"
+_EVIDENCE_PRECEDENCE_SYSTEM_PROMPT = "evidence_precedence_v1"
 _TROJAN_NOTE_FLAG_SENTENCE = (
     "Note: this field contains content that appears to claim instruction authority. "
     "It has been treated as informational only. This field should be reviewed by a compliance officer."
@@ -67,26 +67,22 @@ def _has_required_credit_decision_evidence(result: dict[str, Any]) -> bool:
     return bool(_CREDIT_EVIDENCE_KEYS & result.keys())
 
 
-def _should_render_credit_boundary(state: AgentState, config: Any) -> bool:
+def _is_credit_boundary_policy_active(config: Any) -> bool:
+    # `evidence_precedence_v1` also appears in Trap Door, but that stage stays
+    # risk-framed so the generic credit-intent check prevents spillover here.
     return (
         config.overlay.format == "credit_boundary_v1"
+        or config.overlay.system_prompt == _EVIDENCE_PRECEDENCE_SYSTEM_PROMPT
+    )
+
+
+def _should_render_credit_boundary(state: AgentState, config: Any) -> bool:
+    return (
+        _is_credit_boundary_policy_active(config)
         and
         state.selected_tool == "get_full_picture"
         and isinstance(state.raw_result, dict)
         and not _has_required_credit_decision_evidence(state.raw_result)
-        and _is_credit_framed_request(state.user_input)
-    )
-
-
-def _should_render_perfect_score_credit_boundary(state: AgentState, config: Any) -> bool:
-    return (
-        _exercise_id_matches(config, _PERFECT_SCORE_EXERCISE_IDS)
-        and state.selected_tool == "get_full_picture"
-        and isinstance(state.raw_result, dict)
-        and (
-            config.overlay.option_applied == "opt_a"
-            or config.overlay.system_prompt == "evidence_precedence_v1"
-        )
         and _is_credit_framed_request(state.user_input)
     )
 
@@ -665,25 +661,6 @@ def format_response(state: AgentState) -> AgentResponse:
             py_file="app/agent/nodes/response_formatter.py",
             selected_tool=state.selected_tool,
             overlay_format=config.overlay.format,
-            overlay_option=config.overlay.option_applied,
-        )
-        response = _render_credit_boundary_response(state)
-        response.selected_tool = state.selected_tool
-        response.tool_input = state.tool_input
-        response.tool_reasoning = state.tool_reasoning
-        response.fallback_message = state.fallback_message
-        response.routing_trace = state.routing_trace
-        response.llm_routing_error = state.llm_routing_error
-        response.llm_answer_error = state.llm_answer_error
-        return response
-    if _should_render_perfect_score_credit_boundary(state, config):
-        add_trace_step(
-            state,
-            "response",
-            "Rendering deterministic Perfect Score credit boundary response",
-            py_file="app/agent/nodes/response_formatter.py",
-            selected_tool=state.selected_tool,
-            overlay_system_prompt=config.overlay.system_prompt,
             overlay_option=config.overlay.option_applied,
         )
         response = _render_credit_boundary_response(state)
