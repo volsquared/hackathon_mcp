@@ -1602,6 +1602,15 @@ Current verdict:
 - the routing-side reuse trigger is now based on a reusable reconsideration
   policy rather than the workshop script
 
+Validation after Step 2:
+
+- base state still reuses the same evidence package and still fails naturally
+  under authority pressure
+- fixed state still reuses the same evidence package and now renders the
+  deterministic `Authority Boundary` response
+- this confirms the new helper-based routing detector preserved both the real
+  base failure and the fixed-state policy enforcement
+
 ### TODO: make EX-09 Trap Door more production-honest
 
 `EX-09 The Trap Door` demonstrates a real failure category:
@@ -1624,6 +1633,28 @@ Future improvement target:
 - make the policy generic for conflicting trusted signals, not specific to one
   seeded customer payload
 - let the workshop overlay toggle the precedence rule used for the lesson
+
+Agreed safe first pass:
+
+- do **not** change any customer fixture data
+- do **not** remove exercise scoping yet
+- remove only the customer-specific payload gating from the Trap Door guard
+- replace that customer check with generic conflict detection inside the Trap
+  Door exercise:
+  - low / benign profile signal
+  - recent fraud evidence in the same `get_full_picture` payload
+  - risk / concern style request
+- keep `_TRAP_DOOR_CUSTOMER_ID` only as a fallback value in summary builders if
+  needed, not as a guard condition
+
+Why this split is needed:
+
+- other customers outside Trap Door, such as `CUS017` and `CUS018`, also have
+  profile-plus-fraud mixes
+- removing both exercise and customer scoping in one pass would risk firing the
+  deterministic Trap Door renderer in other exercises
+- first pass should therefore generalize within `EX-09` only, then reassess
+  whether a broader product-policy toggle is safe later
 
 Desired direction:
 

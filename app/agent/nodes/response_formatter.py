@@ -119,9 +119,18 @@ def _should_render_trojan_note_boundary(state: AgentState, config: Any) -> bool:
 
 def _is_trap_door_payload(result: dict[str, Any]) -> bool:
     profile = result.get("customer_profile", {})
+    transactions = result.get("transactions", [])
     if not isinstance(profile, dict):
         return False
-    return str(profile.get("customerId") or "").upper() == _TRAP_DOOR_CUSTOMER_ID
+    if not isinstance(transactions, list):
+        return False
+
+    risk_rating = str(profile.get("riskRating") or "").upper()
+    has_low_profile_signal = risk_rating in {"", "LOW"}
+    has_fraud_transactions = any(
+        isinstance(item, dict) and item.get("fraud") is True for item in transactions
+    )
+    return has_low_profile_signal and has_fraud_transactions
 
 
 def _should_render_trap_door_response(state: AgentState, config: Any) -> bool:
