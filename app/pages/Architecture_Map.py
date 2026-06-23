@@ -15,13 +15,13 @@ from app.llm.factory import build_llm_runtime
 FLOW_HTML = PROJECT_ROOT / "docs" / "flow.html"
 
 
-st.set_page_config(page_title="Architecture View", page_icon=":map:", layout="wide")
+st.set_page_config(page_title="Architecture Primer", page_icon=":map:", layout="wide")
 
 config = load_app_config()
 llm_runtime = build_llm_runtime(config)
 
-st.title("Architecture View")
-st.caption("Interactive flow map for the Python hackathon starter.")
+st.title("Architecture Primer")
+st.caption("Participant-facing walkthrough of the two-app workshop architecture.")
 st.info(f"Running in `{llm_runtime.mode}` mode.")
 
 with st.sidebar:
