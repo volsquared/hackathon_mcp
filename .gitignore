@@ -9,6 +9,11 @@ __pycache__/
 *.pyd
 .env
 session.md
+HANDOVER.md
+CONTENT_FRAMEWORK.md
+CUSTOMER_DATA_FRAMEWORK.md
+hackathon.md
+scenario_matrix.md
 output/
 .claude/
 claude-session.md
